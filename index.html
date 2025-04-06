@@ -87,7 +87,7 @@
       <canvas id="output"></canvas>
       <div id="status">Loading camera...</div>
       <div id="alert"><div id="alert-text">EYES CLOSED TOO LONG!</div></div>
-      <div id="debug">EAR: 0.00 | State: Monitoring</div>
+      <div id="debug">EAR: 0.00 | FPS: 0 | State: Monitoring</div>
     </div>
 
     <audio id="alertSound" src="alert.mp3"></audio>
@@ -102,10 +102,15 @@
       const debug = document.getElementById("debug");
 
       // Adjusted threshold for more accurate eye closure detection
-      const EAR_THRESHOLD = 0.2;  // Lower threshold to better detect actual closure
-      const CLOSED_THRESHOLD = 15; // More frames to confirm actual closure
+      const EAR_THRESHOLD = 0.2;  // Threshold for eye closure
+      const TARGET_ALERT_TIME = 3; // Alert after 3 seconds of eyes closed
       const RECOVERY_FRAMES = 3;   // Number of open frames needed to reset alert
 
+      // FPS calculation
+      let frameTimestamps = [];
+      let currentFPS = 0;
+      let framesForThreeSeconds = 30; // Initial guess, will be adjusted based on actual FPS
+      
       let consecutiveClosedFrames = 0;
       let consecutiveOpenFrames = 0;
       let isAlertActive = false;
@@ -121,6 +126,28 @@
           }
         },
       };
+
+      // Calculate FPS based on recent frame timestamps
+      function updateFPS() {
+        const now = performance.now();
+        frameTimestamps.push(now);
+        
+        // Keep only the last 30 frames for FPS calculation
+        if (frameTimestamps.length > 30) {
+          frameTimestamps.shift();
+        }
+        
+        // Need at least 10 frames to calculate FPS
+        if (frameTimestamps.length >= 10) {
+          const timeElapsed = now - frameTimestamps[0];
+          const frameCount = frameTimestamps.length - 1;
+          if (timeElapsed > 0) {
+            currentFPS = (1000 * frameCount / timeElapsed).toFixed(1);
+            // Calculate how many frames equal 3 seconds
+            framesForThreeSeconds = Math.ceil(currentFPS * TARGET_ALERT_TIME);
+          }
+        }
+      }
 
       function getEAR(landmarks, indices) {
         const p1 = landmarks[indices[1]];
@@ -159,6 +186,8 @@
       }
 
       function onResults(results) {
+        updateFPS(); // Update FPS on each frame
+        
         if (video.videoWidth && video.videoHeight) {
           resizeCanvas();
         }
@@ -197,7 +226,10 @@
           const currentThreshold = getDynamicThreshold();
           
           const eyeState = avgEAR < currentThreshold ? "Closed" : "Open";
-          debug.textContent = `EAR: ${avgEAR.toFixed(2)} | Threshold: ${currentThreshold.toFixed(2)} | State: ${eyeState}`;
+          const timeToAlert = ((framesForThreeSeconds - consecutiveClosedFrames) / currentFPS).toFixed(1);
+          const progressToAlert = Math.min(100, (consecutiveClosedFrames / framesForThreeSeconds * 100)).toFixed(0);
+          
+          debug.textContent = `EAR: ${avgEAR.toFixed(2)} | FPS: ${currentFPS} | Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds} | Progress: ${progressToAlert}% | State: ${eyeState}`;
 
           // Logic for eye state detection with improved recovery
           if (avgEAR < currentThreshold) {
@@ -211,8 +243,8 @@
             }
           }
 
-          // Alert logic
-          if (consecutiveClosedFrames >= CLOSED_THRESHOLD) {
+          // Alert logic - trigger when frames closed reaches the 3-second threshold
+          if (consecutiveClosedFrames >= framesForThreeSeconds) {
             if (!isAlertActive) {
               isAlertActive = true;
               status.textContent = "ALERT: Eyes closed too long!";
@@ -236,7 +268,7 @@
           
         } else {
           status.textContent = "No face detected";
-          debug.textContent = "EAR: N/A | State: No Face";
+          debug.textContent = `EAR: N/A | FPS: ${currentFPS} | State: No Face`;
           // Don't change alert state when face is temporarily lost
         }
 
