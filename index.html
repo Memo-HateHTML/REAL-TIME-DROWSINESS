@@ -101,13 +101,16 @@
       const alertSound = document.getElementById("alertSound");
       const debug = document.getElementById("debug");
 
-      const EAR_THRESHOLD = 0.23;
-      const CLOSED_THRESHOLD = 10;
-      const WINDOW_SIZE = 24;
+      // Adjusted threshold for more accurate eye closure detection
+      const EAR_THRESHOLD = 0.2;  // Lower threshold to better detect actual closure
+      const CLOSED_THRESHOLD = 15; // More frames to confirm actual closure
+      const RECOVERY_FRAMES = 3;   // Number of open frames needed to reset alert
 
-      let blinkWindow = [];
       let consecutiveClosedFrames = 0;
+      let consecutiveOpenFrames = 0;
       let isAlertActive = false;
+      let earHistory = [];
+      const EAR_HISTORY_SIZE = 30; // Track EAR values to establish baseline
 
       const appInventorBridge = {
         sendAlert: function (isActive) {
@@ -131,7 +134,23 @@
         const vertical2 = Math.hypot(p1.x - p3.x, p1.y - p3.y);
         const horizontal = Math.hypot(p0.x - p5.x, p0.y - p5.y);
 
+        // Avoid division by zero
+        if (horizontal === 0) return 1.0;
         return (vertical1 + vertical2) / (2.0 * horizontal);
+      }
+
+      // Get dynamic threshold based on user's normal eye state
+      function getDynamicThreshold() {
+        if (earHistory.length < EAR_HISTORY_SIZE) {
+          return EAR_THRESHOLD; // Use default until we have enough data
+        }
+        
+        // Sort and get the lower quartile as the threshold
+        const sortedEAR = [...earHistory].sort((a, b) => a - b);
+        const lowerQuartileIndex = Math.floor(sortedEAR.length * 0.25);
+        const dynamicThreshold = sortedEAR[lowerQuartileIndex] * 0.85; // 15% below lower quartile
+        
+        return Math.min(dynamicThreshold, EAR_THRESHOLD); // Don't go higher than default
       }
 
       function resizeCanvas() {
@@ -166,32 +185,45 @@
           const leftEAR = getEAR(landmarks, [33, 160, 158, 133, 153, 144]);
           const rightEAR = getEAR(landmarks, [362, 385, 387, 263, 373, 380]);
           const avgEAR = (leftEAR + rightEAR) / 2;
+          
+          // Update EAR history for dynamic threshold
+          if (avgEAR > 0.15) { // Only include valid readings
+            earHistory.push(avgEAR);
+            if (earHistory.length > EAR_HISTORY_SIZE) {
+              earHistory.shift();
+            }
+          }
+          
+          const currentThreshold = getDynamicThreshold();
+          
+          const eyeState = avgEAR < currentThreshold ? "Closed" : "Open";
+          debug.textContent = `EAR: ${avgEAR.toFixed(2)} | Threshold: ${currentThreshold.toFixed(2)} | State: ${eyeState}`;
 
-          debug.textContent = `EAR: ${avgEAR.toFixed(2)} | State: ${
-            consecutiveClosedFrames > 0 ? "Eyes Closed" : "Monitoring"
-          }`;
+          // Logic for eye state detection with improved recovery
+          if (avgEAR < currentThreshold) {
+            consecutiveClosedFrames++;
+            consecutiveOpenFrames = 0;
+          } else {
+            consecutiveOpenFrames++;
+            // Only reset closed counter after several confirmed open frames
+            if (consecutiveOpenFrames >= RECOVERY_FRAMES) {
+              consecutiveClosedFrames = 0;
+            }
+          }
 
-          const bothClosed =
-            leftEAR < EAR_THRESHOLD && rightEAR < EAR_THRESHOLD;
-          blinkWindow.push(bothClosed ? 1 : 0);
-          if (blinkWindow.length > WINDOW_SIZE) blinkWindow.shift();
-          consecutiveClosedFrames = bothClosed
-            ? consecutiveClosedFrames + 1
-            : 0;
-
-          if (
-            blinkWindow.length === WINDOW_SIZE &&
-            consecutiveClosedFrames >= CLOSED_THRESHOLD
-          ) {
+          // Alert logic
+          if (consecutiveClosedFrames >= CLOSED_THRESHOLD) {
             if (!isAlertActive) {
               isAlertActive = true;
               status.textContent = "ALERT: Eyes closed too long!";
               alertBox.style.display = "flex";
               alertSound.loop = true;
-              alertSound.play();
+              alertSound.play().catch(e => {
+                console.log("Audio playback failed:", e);
+              });
               appInventorBridge.sendAlert(true);
             }
-          } else {
+          } else if (consecutiveOpenFrames >= RECOVERY_FRAMES) {
             if (isAlertActive) {
               isAlertActive = false;
               status.textContent = "Monitoring...";
@@ -201,9 +233,11 @@
               appInventorBridge.sendAlert(false);
             }
           }
+          
         } else {
           status.textContent = "No face detected";
           debug.textContent = "EAR: N/A | State: No Face";
+          // Don't change alert state when face is temporarily lost
         }
 
         ctx.restore();
