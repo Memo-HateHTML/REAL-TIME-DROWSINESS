@@ -79,7 +79,7 @@
         border-radius: 5px;
         z-index: 10;
       }
-      
+
       #notification {
         position: absolute;
         bottom: 10px;
@@ -93,7 +93,7 @@
         opacity: 0;
         transition: opacity 0.5s;
       }
-      
+
       #phone-container {
         position: absolute;
         top: 50px;
@@ -142,8 +142,8 @@
       const twilioAuthToken = "091332451c0f4c16f3d9be35935c11d8";
       const twilioFromNumber = "+18166246916";
       let alertPhoneNumber = "+66887513078"; // Default phone number
-      const alertMessage = "Drowsy Detect directed to this Number";
-      
+      const alertMessage = "Drowsy Detect SMS Direct to this number";
+
       // Track last SMS sent time
       let lastSMSSentTime = 0;
 
@@ -157,7 +157,7 @@
         // Show notification
         showNotification("Alert phone number updated: " + phoneNumber);
       }
-      
+
       // Make the function globally available
       window.receivePhoneNumber = receivePhoneNumber;
 
@@ -185,19 +185,21 @@
       // Function to send SMS alert with Twilio
       function sendSMSAlert() {
         const currentTime = Date.now();
-        
+
         // Check cooldown period
         if (currentTime - lastSMSSentTime < SMS_COOLDOWN_TIME) {
-          const remainingCooldown = Math.ceil((SMS_COOLDOWN_TIME - (currentTime - lastSMSSentTime)) / 1000);
+          const remainingCooldown = Math.ceil(
+            (SMS_COOLDOWN_TIME - (currentTime - lastSMSSentTime)) / 1000
+          );
           showNotification(`SMS cooldown: ${remainingCooldown}s remaining`);
           return;
         }
-        
+
         // Update last sent time
         lastSMSSentTime = currentTime;
-        
+
         showNotification(`Sending SMS alert to ${alertPhoneNumber}...`);
-        
+
         // Prepare data for the POST request
         const url = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
         const data = new URLSearchParams();
@@ -210,31 +212,32 @@
           method: "POST",
           body: data,
           headers: {
-            "Authorization": "Basic " + btoa(twilioAccountSid + ":" + twilioAuthToken),
-            "Content-Type": "application/x-www-form-urlencoded"
+            Authorization:
+              "Basic " + btoa(twilioAccountSid + ":" + twilioAuthToken),
+            "Content-Type": "application/x-www-form-urlencoded",
           },
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.error_code) {
-            showNotification(`SMS Error: ${data.message}`);
-            console.error("Error sending SMS:", data.message);
-          } else {
-            showNotification("SMS alert sent successfully!");
-            console.log("SMS sent successfully:", data.sid);
-          }
-        })
-        .catch(error => {
-          showNotification("Failed to send SMS alert");
-          console.error("Error sending SMS:", error);
-        });
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.error_code) {
+              showNotification(`SMS Error: ${data.message}`);
+              console.error("Error sending SMS:", data.message);
+            } else {
+              showNotification("SMS alert sent successfully!");
+              console.log("SMS sent successfully:", data.sid);
+            }
+          })
+          .catch((error) => {
+            showNotification("Failed to send SMS alert");
+            console.error("Error sending SMS:", error);
+          });
       }
-      
+
       // Show notification with auto-hide
       function showNotification(message) {
         notification.textContent = message;
         notification.style.opacity = 1;
-        
+
         // Hide notification after 3 seconds
         setTimeout(() => {
           notification.style.opacity = 0;
@@ -377,7 +380,7 @@
                 console.log("Audio playback failed:", e);
               });
               appInventorBridge.sendAlert(true);
-              
+
               // Send SMS alert with cooldown
               sendSMSAlert();
             }
