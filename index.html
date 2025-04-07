@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Full Page Blink Detection</title>
+    <title>Drowsiness Detection with SMS Alert</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -79,6 +79,32 @@
         border-radius: 5px;
         z-index: 10;
       }
+      
+      #notification {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 14px;
+        z-index: 10;
+        opacity: 0;
+        transition: opacity 0.5s;
+      }
+      
+      #phone-container {
+        position: absolute;
+        top: 50px;
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 14px;
+        z-index: 10;
+      }
     </style>
   </head>
   <body>
@@ -88,6 +114,8 @@
       <div id="status">Loading camera...</div>
       <div id="alert"><div id="alert-text">EYES CLOSED TOO LONG!</div></div>
       <div id="debug">EAR: 0.00 | FPS: 0 | State: Monitoring</div>
+      <div id="notification">SMS Alert: Inactive</div>
+      <div id="phone-container">Alert Phone: Default</div>
     </div>
 
     <audio id="alertSound" src="alert.mp3"></audio>
@@ -100,17 +128,44 @@
       const alertBox = document.getElementById("alert");
       const alertSound = document.getElementById("alertSound");
       const debug = document.getElementById("debug");
+      const notification = document.getElementById("notification");
+      const phoneContainer = document.getElementById("phone-container");
 
       // Adjusted threshold for more accurate eye closure detection
-      const EAR_THRESHOLD = 0.2;  // Threshold for eye closure
+      const EAR_THRESHOLD = 0.2; // Threshold for eye closure
       const TARGET_ALERT_TIME = 3; // Alert after 3 seconds of eyes closed
-      const RECOVERY_FRAMES = 3;   // Number of open frames needed to reset alert
+      const RECOVERY_FRAMES = 3; // Number of open frames needed to reset alert
+      const SMS_COOLDOWN_TIME = 15000; // 15 seconds cooldown for SMS alerts
+
+      // SMS Configuration
+      const twilioAccountSid = "AC7de93db1c7917508d40746d5c34a0f1e";
+      const twilioAuthToken = "091332451c0f4c16f3d9be35935c11d8";
+      const twilioFromNumber = "+18166246916";
+      let alertPhoneNumber = "+66887513078"; // Default phone number
+      const alertMessage = "Drowsy Detect from nigga";
+      
+      // Track last SMS sent time
+      let lastSMSSentTime = 0;
+
+      // Function to receive phone number from external source
+      function receivePhoneNumber(phoneNumber) {
+        console.log("Received phone number: " + phoneNumber);
+        // Update the alert phone number
+        alertPhoneNumber = phoneNumber;
+        // Display it in the UI
+        phoneContainer.textContent = "Alert Phone: " + phoneNumber;
+        // Show notification
+        showNotification("Alert phone number updated: " + phoneNumber);
+      }
+      
+      // Make the function globally available
+      window.receivePhoneNumber = receivePhoneNumber;
 
       // FPS calculation
       let frameTimestamps = [];
       let currentFPS = 0;
       let framesForThreeSeconds = 30; // Initial guess, will be adjusted based on actual FPS
-      
+
       let consecutiveClosedFrames = 0;
       let consecutiveOpenFrames = 0;
       let isAlertActive = false;
@@ -127,22 +182,81 @@
         },
       };
 
+      // Function to send SMS alert with Twilio
+      function sendSMSAlert() {
+        const currentTime = Date.now();
+        
+        // Check cooldown period
+        if (currentTime - lastSMSSentTime < SMS_COOLDOWN_TIME) {
+          const remainingCooldown = Math.ceil((SMS_COOLDOWN_TIME - (currentTime - lastSMSSentTime)) / 1000);
+          showNotification(`SMS cooldown: ${remainingCooldown}s remaining`);
+          return;
+        }
+        
+        // Update last sent time
+        lastSMSSentTime = currentTime;
+        
+        showNotification(`Sending SMS alert to ${alertPhoneNumber}...`);
+        
+        // Prepare data for the POST request
+        const url = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
+        const data = new URLSearchParams();
+        data.append("From", twilioFromNumber);
+        data.append("To", alertPhoneNumber);
+        data.append("Body", alertMessage);
+
+        // Send the POST request to Twilio API
+        fetch(url, {
+          method: "POST",
+          body: data,
+          headers: {
+            "Authorization": "Basic " + btoa(twilioAccountSid + ":" + twilioAuthToken),
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.error_code) {
+            showNotification(`SMS Error: ${data.message}`);
+            console.error("Error sending SMS:", data.message);
+          } else {
+            showNotification("SMS alert sent successfully!");
+            console.log("SMS sent successfully:", data.sid);
+          }
+        })
+        .catch(error => {
+          showNotification("Failed to send SMS alert");
+          console.error("Error sending SMS:", error);
+        });
+      }
+      
+      // Show notification with auto-hide
+      function showNotification(message) {
+        notification.textContent = message;
+        notification.style.opacity = 1;
+        
+        // Hide notification after 3 seconds
+        setTimeout(() => {
+          notification.style.opacity = 0;
+        }, 3000);
+      }
+
       // Calculate FPS based on recent frame timestamps
       function updateFPS() {
         const now = performance.now();
         frameTimestamps.push(now);
-        
+
         // Keep only the last 30 frames for FPS calculation
         if (frameTimestamps.length > 30) {
           frameTimestamps.shift();
         }
-        
+
         // Need at least 10 frames to calculate FPS
         if (frameTimestamps.length >= 10) {
           const timeElapsed = now - frameTimestamps[0];
           const frameCount = frameTimestamps.length - 1;
           if (timeElapsed > 0) {
-            currentFPS = (1000 * frameCount / timeElapsed).toFixed(1);
+            currentFPS = ((1000 * frameCount) / timeElapsed).toFixed(1);
             // Calculate how many frames equal 3 seconds
             framesForThreeSeconds = Math.ceil(currentFPS * TARGET_ALERT_TIME);
           }
@@ -171,12 +285,12 @@
         if (earHistory.length < EAR_HISTORY_SIZE) {
           return EAR_THRESHOLD; // Use default until we have enough data
         }
-        
+
         // Sort and get the lower quartile as the threshold
         const sortedEAR = [...earHistory].sort((a, b) => a - b);
         const lowerQuartileIndex = Math.floor(sortedEAR.length * 0.25);
         const dynamicThreshold = sortedEAR[lowerQuartileIndex] * 0.85; // 15% below lower quartile
-        
+
         return Math.min(dynamicThreshold, EAR_THRESHOLD); // Don't go higher than default
       }
 
@@ -187,7 +301,7 @@
 
       function onResults(results) {
         updateFPS(); // Update FPS on each frame
-        
+
         if (video.videoWidth && video.videoHeight) {
           resizeCanvas();
         }
@@ -214,22 +328,31 @@
           const leftEAR = getEAR(landmarks, [33, 160, 158, 133, 153, 144]);
           const rightEAR = getEAR(landmarks, [362, 385, 387, 263, 373, 380]);
           const avgEAR = (leftEAR + rightEAR) / 2;
-          
+
           // Update EAR history for dynamic threshold
-          if (avgEAR > 0.15) { // Only include valid readings
+          if (avgEAR > 0.15) {
+            // Only include valid readings
             earHistory.push(avgEAR);
             if (earHistory.length > EAR_HISTORY_SIZE) {
               earHistory.shift();
             }
           }
-          
+
           const currentThreshold = getDynamicThreshold();
-          
+
           const eyeState = avgEAR < currentThreshold ? "Closed" : "Open";
-          const timeToAlert = ((framesForThreeSeconds - consecutiveClosedFrames) / currentFPS).toFixed(1);
-          const progressToAlert = Math.min(100, (consecutiveClosedFrames / framesForThreeSeconds * 100)).toFixed(0);
-          
-          debug.textContent = `EAR: ${avgEAR.toFixed(2)} | FPS: ${currentFPS} | Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds} | Progress: ${progressToAlert}% | State: ${eyeState}`;
+          const timeToAlert = (
+            (framesForThreeSeconds - consecutiveClosedFrames) /
+            currentFPS
+          ).toFixed(1);
+          const progressToAlert = Math.min(
+            100,
+            (consecutiveClosedFrames / framesForThreeSeconds) * 100
+          ).toFixed(0);
+
+          debug.textContent = `EAR: ${avgEAR.toFixed(
+            2
+          )} | FPS: ${currentFPS} | Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds} | Progress: ${progressToAlert}% | State: ${eyeState}`;
 
           // Logic for eye state detection with improved recovery
           if (avgEAR < currentThreshold) {
@@ -250,10 +373,13 @@
               status.textContent = "ALERT: Eyes closed too long!";
               alertBox.style.display = "flex";
               alertSound.loop = true;
-              alertSound.play().catch(e => {
+              alertSound.play().catch((e) => {
                 console.log("Audio playback failed:", e);
               });
               appInventorBridge.sendAlert(true);
+              
+              // Send SMS alert with cooldown
+              sendSMSAlert();
             }
           } else if (consecutiveOpenFrames >= RECOVERY_FRAMES) {
             if (isAlertActive) {
@@ -265,7 +391,6 @@
               appInventorBridge.sendAlert(false);
             }
           }
-          
         } else {
           status.textContent = "No face detected";
           debug.textContent = `EAR: N/A | FPS: ${currentFPS} | State: No Face`;
