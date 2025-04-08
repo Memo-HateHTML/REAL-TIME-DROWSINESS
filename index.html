@@ -105,15 +105,67 @@
         font-size: 14px;
         z-index: 10;
       }
+
+      /* Permission overlay */
+      #permission-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.9);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 20;
+        color: white;
+        text-align: center;
+        padding: 20px;
+      }
+
+      #start-button {
+        margin-top: 20px;
+        padding: 15px 30px;
+        background-color: #2196F3;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 18px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      #start-button:hover {
+        background-color: #0b7dda;
+      }
+
+      .permission-text {
+        max-width: 600px;
+        margin-bottom: 20px;
+        font-size: 16px;
+        line-height: 1.5;
+      }
     </style>
   </head>
   <body>
     <div class="container">
+      <!-- Permission overlay -->
+      <div id="permission-overlay">
+        <h2>Drowsiness Detection System</h2>
+        <div class="permission-text">
+          <p>This application uses your camera to detect drowsiness and can send alert messages when dangerous drowsiness is detected.</p>
+          <p>We need your permission to access your camera for this safety feature to work.</p>
+          <p>No video data is stored or transmitted - all processing happens locally in your browser.</p>
+        </div>
+        <button id="start-button">Start Camera & Begin Monitoring</button>
+      </div>
+
       <video id="video" autoplay muted playsinline></video>
       <canvas id="output"></canvas>
-      <div id="status">Loading camera...</div>
+      <div id="status">Waiting for camera permission...</div>
       <div id="alert"><div id="alert-text">EYES CLOSED TOO LONG!</div></div>
-      <div id="debug">EAR: 0.00 | FPS: 0 | State: Monitoring</div>
+      <div id="debug">EAR: 0.00 | FPS: 0 | State: Not Started</div>
       <div id="notification">SMS Alert: Inactive</div>
       <div id="phone-container">Alert Phone: Default</div>
     </div>
@@ -130,6 +182,8 @@
       const debug = document.getElementById("debug");
       const notification = document.getElementById("notification");
       const phoneContainer = document.getElementById("phone-container");
+      const permissionOverlay = document.getElementById("permission-overlay");
+      const startButton = document.getElementById("start-button");
 
       // Adjusted threshold for more accurate eye closure detection
       const EAR_THRESHOLD = 0.2; // Threshold for eye closure
@@ -417,16 +471,35 @@
 
       faceMesh.onResults(onResults);
 
-      const camera = new Camera(video, {
-        onFrame: async () => {
-          await faceMesh.send({ image: video });
-        },
-        width: 1280,
-        height: 720,
-      });
+      // Initialize the camera setup
+      function initCamera() {
+        permissionOverlay.style.display = "none";
+        status.textContent = "Starting camera...";
+        
+        const camera = new Camera(video, {
+          onFrame: async () => {
+            await faceMesh.send({ image: video });
+          },
+          width: 1280,
+          height: 720,
+        });
 
-      camera.start().then(() => {
-        status.textContent = "Monitoring...";
+        camera.start().then(() => {
+          status.textContent = "Monitoring...";
+          showNotification("Camera started successfully");
+        }).catch(error => {
+          status.textContent = "Camera error!";
+          showNotification("Failed to start camera: " + error.message);
+          console.error("Camera error:", error);
+          
+          // Show permission overlay again if there was an error
+          permissionOverlay.style.display = "flex";
+        });
+      }
+
+      // Add event listener to the start button
+      startButton.addEventListener("click", () => {
+        initCamera();
       });
 
       window.addEventListener("message", function (event) {
