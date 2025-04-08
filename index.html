@@ -2,16 +2,16 @@
 <html>
   <head>
     <title>Drowsiness Detection with SMS Alert</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <style>
-      html,
-      body {
+      html, body {
         margin: 0;
         padding: 0;
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
         overflow: hidden;
         background: black;
         font-family: Arial, sans-serif;
@@ -19,12 +19,11 @@
 
       .container {
         position: relative;
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
       }
 
-      video,
-      canvas {
+      video, canvas {
         position: absolute;
         width: 100%;
         height: 100%;
@@ -122,6 +121,7 @@
         color: white;
         text-align: center;
         padding: 20px;
+        box-sizing: border-box;
       }
 
       #start-button {
@@ -134,17 +134,37 @@
         font-size: 18px;
         cursor: pointer;
         transition: background-color 0.3s;
+        -webkit-tap-highlight-color: transparent;
       }
 
-      #start-button:hover {
+      #start-button:hover, #start-button:active {
         background-color: #0b7dda;
       }
 
       .permission-text {
-        max-width: 600px;
+        max-width: 90%;
         margin-bottom: 20px;
         font-size: 16px;
         line-height: 1.5;
+      }
+      
+      /* Android specific error message */
+      #android-error {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.9);
+        display: none;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 30;
+        color: white;
+        text-align: center;
+        padding: 20px;
+        box-sizing: border-box;
       }
     </style>
   </head>
@@ -160,6 +180,18 @@
         </div>
         <button id="start-button">Start Camera & Begin Monitoring</button>
       </div>
+      
+      <!-- Android specific error message -->
+      <div id="android-error">
+        <h2>Camera Access Error</h2>
+        <div class="permission-text">
+          <p>Unable to access the camera. This may be due to:</p>
+          <p>1. Camera permission not granted in Android settings</p>
+          <p>2. Another app is currently using the camera</p>
+          <p>3. WebView camera access is not enabled in the app</p>
+        </div>
+        <button id="retry-button">Retry Camera Access</button>
+      </div>
 
       <video id="video" autoplay muted playsinline></video>
       <canvas id="output"></canvas>
@@ -173,6 +205,36 @@
     <audio id="alertSound" src="alert.mp3"></audio>
 
     <script>
+      // Android WebView Bridge
+      function AndroidBridge() {
+        this.hasAndroidBridge = (typeof Android !== 'undefined');
+      
+        this.requestCameraPermission = function() {
+          if (this.hasAndroidBridge && Android.requestCameraPermission) {
+            return Android.requestCameraPermission();
+          }
+          return true; // Return true if no Android bridge (regular browser)
+        };
+      
+        this.hasCameraPermission = function() {
+          if (this.hasAndroidBridge && Android.hasCameraPermission) {
+            return Android.hasCameraPermission();
+          }
+          return true; // Return true if no Android bridge (regular browser)
+        };
+      
+        this.showToast = function(message) {
+          if (this.hasAndroidBridge && Android.showToast) {
+            Android.showToast(message);
+          } else {
+            console.log("Toast (not on Android):", message);
+          }
+        };
+      }
+      
+      const androidBridge = new AndroidBridge();
+      
+      // Elements
       const video = document.getElementById("video");
       const canvas = document.getElementById("output");
       const ctx = canvas.getContext("2d");
@@ -184,6 +246,8 @@
       const phoneContainer = document.getElementById("phone-container");
       const permissionOverlay = document.getElementById("permission-overlay");
       const startButton = document.getElementById("start-button");
+      const androidError = document.getElementById("android-error");
+      const retryButton = document.getElementById("retry-button");
 
       // Adjusted threshold for more accurate eye closure detection
       const EAR_THRESHOLD = 0.2; // Threshold for eye closure
@@ -200,6 +264,7 @@
 
       // Track last SMS sent time
       let lastSMSSentTime = 0;
+      let camera = null;
 
       // Function to receive phone number from external source
       function receivePhoneNumber(phoneNumber) {
@@ -210,6 +275,9 @@
         phoneContainer.textContent = "Alert Phone: " + phoneNumber;
         // Show notification
         showNotification("Alert phone number updated: " + phoneNumber);
+        
+        // Show toast on Android if available
+        androidBridge.showToast("Alert phone updated: " + phoneNumber);
       }
 
       // Make the function globally available
@@ -253,6 +321,9 @@
         lastSMSSentTime = currentTime;
 
         showNotification(`Sending SMS alert to ${alertPhoneNumber}...`);
+        
+        // Android toast if available
+        androidBridge.showToast("Sending SMS alert...");
 
         // Prepare data for the POST request
         const url = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
@@ -276,14 +347,17 @@
             if (data.error_code) {
               showNotification(`SMS Error: ${data.message}`);
               console.error("Error sending SMS:", data.message);
+              androidBridge.showToast("SMS Error: " + data.message);
             } else {
               showNotification("SMS alert sent successfully!");
               console.log("SMS sent successfully:", data.sid);
+              androidBridge.showToast("SMS alert sent successfully!");
             }
           })
           .catch((error) => {
             showNotification("Failed to send SMS alert");
             console.error("Error sending SMS:", error);
+            androidBridge.showToast("Failed to send SMS alert");
           });
       }
 
@@ -367,7 +441,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-        if (results.multiFaceLandmarks.length > 0) {
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
           const landmarks = results.multiFaceLandmarks[0];
           drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, {
             color: "#C0C0C070",
@@ -457,6 +531,7 @@
         ctx.restore();
       }
 
+      // Initialize FaceMesh
       const faceMesh = new FaceMesh({
         locateFile: (file) =>
           `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
@@ -471,41 +546,134 @@
 
       faceMesh.onResults(onResults);
 
-      // Initialize the camera setup
-      function initCamera() {
-        permissionOverlay.style.display = "none";
-        status.textContent = "Starting camera...";
-        
-        const camera = new Camera(video, {
-          onFrame: async () => {
-            await faceMesh.send({ image: video });
-          },
-          width: 1280,
-          height: 720,
-        });
-
-        camera.start().then(() => {
-          status.textContent = "Monitoring...";
-          showNotification("Camera started successfully");
-        }).catch(error => {
-          status.textContent = "Camera error!";
-          showNotification("Failed to start camera: " + error.message);
-          console.error("Camera error:", error);
-          
-          // Show permission overlay again if there was an error
-          permissionOverlay.style.display = "flex";
-        });
+      // Check for Android WebView camera permissions
+      async function checkAndroidPermissions() {
+        // If using Android bridge, check permissions
+        if (androidBridge.hasAndroidBridge) {
+          if (!androidBridge.hasCameraPermission()) {
+            // Request permission through Android bridge
+            const permissionGranted = androidBridge.requestCameraPermission();
+            if (!permissionGranted) {
+              showAndroidError();
+              return false;
+            }
+          }
+        }
+        return true;
+      }
+      
+      function showAndroidError() {
+        androidError.style.display = 'flex';
+        permissionOverlay.style.display = 'none';
       }
 
-      // Add event listener to the start button
+      // Initialize the camera setup
+      async function initCamera() {
+        permissionOverlay.style.display = "none";
+        androidError.style.display = "none";
+        status.textContent = "Starting camera...";
+        
+        // Check Android permissions first if applicable
+        const permissionsOK = await checkAndroidPermissions();
+        if (!permissionsOK) {
+          return;
+        }
+        
+        try {
+          // Check if getUserMedia is supported
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("getUserMedia not supported");
+          }
+          
+          // First check if camera is available by requesting user permission
+          await navigator.mediaDevices.getUserMedia({ video: true });
+          
+          // Initialize camera with MediaPipe
+          camera = new Camera(video, {
+            onFrame: async () => {
+              await faceMesh.send({ image: video });
+            },
+            width: 640,  // Reduced resolution for better performance on mobile
+            height: 480,
+            facingMode: "user", // Front camera for better face detection
+          });
+          
+          await camera.start();
+          status.textContent = "Monitoring...";
+          showNotification("Camera started successfully");
+          androidBridge.showToast("Drowsiness detection active");
+          
+        } catch (error) {
+          console.error("Camera error:", error);
+          status.textContent = "Camera error!";
+          showNotification("Failed to start camera: " + error.message);
+          
+          // Show Android specific error if in WebView
+          if (androidBridge.hasAndroidBridge) {
+            showAndroidError();
+          } else {
+            // Show regular permission overlay again
+            permissionOverlay.style.display = "flex";
+          }
+        }
+      }
+
+      // Add event listeners
       startButton.addEventListener("click", () => {
         initCamera();
       });
+      
+      retryButton.addEventListener("click", () => {
+        initCamera();
+      });
 
+      // Handle messages from Android
       window.addEventListener("message", function (event) {
         if (event.data && event.data.action === "getAlertStatus") {
           appInventorBridge.sendAlert(isAlertActive);
         }
+        
+        if (event.data && event.data.action === "cameraPermissionGranted") {
+          initCamera();
+        }
+        
+        if (event.data && event.data.action === "updatePhoneNumber" && event.data.phoneNumber) {
+          receivePhoneNumber(event.data.phoneNumber);
+        }
+      });
+      
+      // Make camera controls available globally for Android to call
+      window.startCamera = initCamera;
+      window.stopCamera = function() {
+        if (camera) {
+          camera.stop();
+          status.textContent = "Camera stopped";
+          showNotification("Camera stopped");
+        }
+      };
+      
+      // Handle page visibility changes (app going to background)
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden && camera) {
+          // Page is hidden (app in background)
+          camera.stop();
+        } else if (!document.hidden && camera) {
+          // Page is visible again (app in foreground)
+          camera.start().catch(error => {
+            console.error("Error restarting camera:", error);
+            initCamera(); // Try full reinit if simple restart fails
+          });
+        }
+      });
+      
+      // Handle orientation changes
+      window.addEventListener('orientationchange', function() {
+        // Give time for orientation to complete
+        setTimeout(() => {
+          if (video.videoWidth && video.videoHeight) {
+            resizeCanvas();
+          }
+        }, 300);
       });
     </script>
   </body>
