@@ -2,12 +2,16 @@
 <html>
   <head>
     <title>Drowsiness Detection with SMS Alert</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <style>
-      html, body {
+      html,
+      body {
         margin: 0;
         padding: 0;
         width: 100%;
@@ -23,7 +27,8 @@
         height: 100%;
       }
 
-      video, canvas {
+      video,
+      canvas {
         position: absolute;
         width: 100%;
         height: 100%;
@@ -127,7 +132,7 @@
       #start-button {
         margin-top: 20px;
         padding: 15px 30px;
-        background-color: #2196F3;
+        background-color: #2196f3;
         color: white;
         border: none;
         border-radius: 5px;
@@ -137,7 +142,8 @@
         -webkit-tap-highlight-color: transparent;
       }
 
-      #start-button:hover, #start-button:active {
+      #start-button:hover,
+      #start-button:active {
         background-color: #0b7dda;
       }
 
@@ -147,7 +153,7 @@
         font-size: 16px;
         line-height: 1.5;
       }
-      
+
       /* Android specific error message */
       #android-error {
         position: absolute;
@@ -174,13 +180,22 @@
       <div id="permission-overlay">
         <h2>Drowsiness Detection System</h2>
         <div class="permission-text">
-          <p>This application uses your camera to detect drowsiness and can send alert messages when dangerous drowsiness is detected.</p>
-          <p>We need your permission to access your camera for this safety feature to work.</p>
-          <p>No video data is stored or transmitted - all processing happens locally in your browser.</p>
+          <p>
+            This application uses your camera to detect drowsiness and can send
+            alert messages when dangerous drowsiness is detected.
+          </p>
+          <p>
+            We need your permission to access your camera for this safety
+            feature to work.
+          </p>
+          <p>
+            No video data is stored or transmitted - all processing happens
+            locally in your browser.
+          </p>
         </div>
         <button id="start-button">Start Camera & Begin Monitoring</button>
       </div>
-      
+
       <!-- Android specific error message -->
       <div id="android-error">
         <h2>Camera Access Error</h2>
@@ -207,17 +222,17 @@
     <script>
       // Flag to track if running from MIT App Inventor
       let isRunningFromMIT = false;
-      
+
       // Function to be called from MIT App Inventor to indicate the environment
       function runfrommit() {
         isRunningFromMIT = true;
         console.log("Running from MIT App Inventor environment");
         showNotification("MIT App Inventor detected");
-        
+
         // Automatically initialize camera when running from MIT
         if (androidBridge.hasAndroidBridge) {
           // If we have Android bridge, we need to check permissions
-          checkAndroidPermissions().then(permissionsOK => {
+          checkAndroidPermissions().then((permissionsOK) => {
             if (permissionsOK) {
               initCamera();
             }
@@ -226,37 +241,37 @@
           // No Android bridge, directly initialize camera
           initCamera();
         }
-        
+
         // Send acknowledgment to App Inventor if WebViewString is available
         if (window.AppInventor && window.AppInventor.setWebViewString) {
           window.AppInventor.setWebViewString("MIT_ENVIRONMENT=ACKNOWLEDGED");
         }
-        
+
         return true; // Return true to confirm successful execution
       }
-      
+
       // Make runfrommit globally available
       window.runfrommit = runfrommit;
-      
+
       // Android WebView Bridge
       function AndroidBridge() {
-        this.hasAndroidBridge = (typeof Android !== 'undefined');
-      
-        this.requestCameraPermission = function() {
+        this.hasAndroidBridge = typeof Android !== "undefined";
+
+        this.requestCameraPermission = function () {
           if (this.hasAndroidBridge && Android.requestCameraPermission) {
             return Android.requestCameraPermission();
           }
           return true; // Return true if no Android bridge (regular browser)
         };
-      
-        this.hasCameraPermission = function() {
+
+        this.hasCameraPermission = function () {
           if (this.hasAndroidBridge && Android.hasCameraPermission) {
             return Android.hasCameraPermission();
           }
           return true; // Return true if no Android bridge (regular browser)
         };
-      
-        this.showToast = function(message) {
+
+        this.showToast = function (message) {
           if (this.hasAndroidBridge && Android.showToast) {
             Android.showToast(message);
           } else {
@@ -264,9 +279,9 @@
           }
         };
       }
-      
+
       const androidBridge = new AndroidBridge();
-      
+
       // Elements
       const video = document.getElementById("video");
       const canvas = document.getElementById("output");
@@ -288,9 +303,10 @@
       const RECOVERY_FRAMES = 3; // Number of open frames needed to reset alert
       const SMS_COOLDOWN_TIME = 15000; // 15 seconds cooldown for SMS alerts
 
-      // SMS Configuration
-      const twilioAccountSid = "AC7de93db1c7917508d40746d5c34a0f1e";
-      const twilioAuthToken = "6d4962c0619ce5ef5d34ed08f86905a2";
+      // SMS Configuration using API key instead of Account SID/Auth Token
+      const twilioApiKey = "SK361e6faad3ec68d3c14e0b925c3dde47";
+      const twilioApiSecret = "oAZyaPgsFF7oEzbVT1hRktGuiIu9wWL1";
+      const twilioAccountSid = "AC7de93db1c7917508d40746d5c34a0f1e"; // Still need account SID for URL
       const twilioFromNumber = "+18166246916";
       let alertPhoneNumber = "+66887513078"; // Default phone number
       const alertMessage = "Drowsy Detect SMS Direct to this number";
@@ -308,7 +324,7 @@
         phoneContainer.textContent = "Alert Phone: " + phoneNumber;
         // Show notification
         showNotification("Alert phone number updated: " + phoneNumber);
-        
+
         // Show toast on Android if available
         androidBridge.showToast("Alert phone updated: " + phoneNumber);
       }
@@ -337,7 +353,7 @@
         },
       };
 
-      // Function to send SMS alert with Twilio
+      // Function to send SMS alert with Twilio using API keys
       function sendSMSAlert() {
         const currentTime = Date.now();
 
@@ -354,7 +370,7 @@
         lastSMSSentTime = currentTime;
 
         showNotification(`Sending SMS alert to ${alertPhoneNumber}...`);
-        
+
         // Android toast if available
         androidBridge.showToast("Sending SMS alert...");
 
@@ -365,13 +381,13 @@
         data.append("To", alertPhoneNumber);
         data.append("Body", alertMessage);
 
-        // Send the POST request to Twilio API
+        // Send the POST request to Twilio API with API Key authentication
         fetch(url, {
           method: "POST",
           body: data,
           headers: {
             Authorization:
-              "Basic " + btoa(twilioAccountSid + ":" + twilioAuthToken),
+              "Basic " + btoa(twilioApiKey + ":" + twilioApiSecret),
             "Content-Type": "application/x-www-form-urlencoded",
           },
         })
@@ -474,7 +490,10 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        if (
+          results.multiFaceLandmarks &&
+          results.multiFaceLandmarks.length > 0
+        ) {
           const landmarks = results.multiFaceLandmarks[0];
           drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, {
             color: "#C0C0C070",
@@ -594,10 +613,10 @@
         }
         return true;
       }
-      
+
       function showAndroidError() {
-        androidError.style.display = 'flex';
-        permissionOverlay.style.display = 'none';
+        androidError.style.display = "flex";
+        permissionOverlay.style.display = "none";
       }
 
       // Initialize the camera setup
@@ -605,52 +624,59 @@
         permissionOverlay.style.display = "none";
         androidError.style.display = "none";
         status.textContent = "Starting camera...";
-        
+
         // Check Android permissions first if applicable
         const permissionsOK = await checkAndroidPermissions();
         if (!permissionsOK) {
           return;
         }
-        
+
         try {
           // Check if getUserMedia is supported
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error("getUserMedia not supported");
           }
-          
+
           // First check if camera is available by requesting user permission
           await navigator.mediaDevices.getUserMedia({ video: true });
-          
+
           // Initialize camera with MediaPipe
           camera = new Camera(video, {
             onFrame: async () => {
               await faceMesh.send({ image: video });
             },
-            width: 640,  // Reduced resolution for better performance on mobile
+            width: 640, // Reduced resolution for better performance on mobile
             height: 480,
             facingMode: "user", // Front camera for better face detection
           });
-          
+
           await camera.start();
           status.textContent = "Monitoring...";
           showNotification("Camera started successfully");
           androidBridge.showToast("Drowsiness detection active");
-          
+
           // If running from MIT App Inventor, send status
-          if (isRunningFromMIT && window.AppInventor && window.AppInventor.setWebViewString) {
+          if (
+            isRunningFromMIT &&
+            window.AppInventor &&
+            window.AppInventor.setWebViewString
+          ) {
             window.AppInventor.setWebViewString("CAMERA_STATUS=ACTIVE");
           }
-          
         } catch (error) {
           console.error("Camera error:", error);
           status.textContent = "Camera error!";
           showNotification("Failed to start camera: " + error.message);
-          
+
           // If running from MIT App Inventor, send error status
-          if (isRunningFromMIT && window.AppInventor && window.AppInventor.setWebViewString) {
+          if (
+            isRunningFromMIT &&
+            window.AppInventor &&
+            window.AppInventor.setWebViewString
+          ) {
             window.AppInventor.setWebViewString("CAMERA_STATUS=ERROR");
           }
-          
+
           // Show Android specific error if in WebView
           if (androidBridge.hasAndroidBridge) {
             showAndroidError();
@@ -665,7 +691,7 @@
       startButton.addEventListener("click", () => {
         initCamera();
       });
-      
+
       retryButton.addEventListener("click", () => {
         initCamera();
       });
@@ -675,52 +701,60 @@
         if (event.data && event.data.action === "getAlertStatus") {
           appInventorBridge.sendAlert(isAlertActive);
         }
-        
+
         if (event.data && event.data.action === "cameraPermissionGranted") {
           initCamera();
         }
-        
-        if (event.data && event.data.action === "updatePhoneNumber" && event.data.phoneNumber) {
+
+        if (
+          event.data &&
+          event.data.action === "updatePhoneNumber" &&
+          event.data.phoneNumber
+        ) {
           receivePhoneNumber(event.data.phoneNumber);
         }
-        
+
         // Handle MIT App Inventor specific messages
         if (event.data && event.data.action === "runfrommit") {
           runfrommit();
         }
       });
-      
+
       // Make camera controls available globally for Android to call
       window.startCamera = initCamera;
-      window.stopCamera = function() {
+      window.stopCamera = function () {
         if (camera) {
           camera.stop();
           status.textContent = "Camera stopped";
           showNotification("Camera stopped");
-          
+
           // If running from MIT App Inventor, send status
-          if (isRunningFromMIT && window.AppInventor && window.AppInventor.setWebViewString) {
+          if (
+            isRunningFromMIT &&
+            window.AppInventor &&
+            window.AppInventor.setWebViewString
+          ) {
             window.AppInventor.setWebViewString("CAMERA_STATUS=STOPPED");
           }
         }
       };
-      
+
       // Handle page visibility changes (app going to background)
-      document.addEventListener('visibilitychange', function() {
+      document.addEventListener("visibilitychange", function () {
         if (document.hidden && camera) {
           // Page is hidden (app in background)
           camera.stop();
         } else if (!document.hidden && camera) {
           // Page is visible again (app in foreground)
-          camera.start().catch(error => {
+          camera.start().catch((error) => {
             console.error("Error restarting camera:", error);
             initCamera(); // Try full reinit if simple restart fails
           });
         }
       });
-      
+
       // Handle orientation changes
-      window.addEventListener('orientationchange', function() {
+      window.addEventListener("orientationchange", function () {
         // Give time for orientation to complete
         setTimeout(() => {
           if (video.videoWidth && video.videoHeight) {
@@ -728,12 +762,12 @@
           }
         }, 300);
       });
-      
+
       // Check if this was loaded in MIT App Inventor automatically
       // This tries to detect if we're in App Inventor's WebViewer by looking for the AppInventor object
       if (window.AppInventor && window.AppInventor.setWebViewString) {
         // We appear to be in MIT App Inventor, so run the function automatically
-        setTimeout(function() {
+        setTimeout(function () {
           runfrommit();
         }, 1000); // Short delay to ensure everything is loaded
       }
