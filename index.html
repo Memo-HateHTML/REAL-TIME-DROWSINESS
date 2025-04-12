@@ -205,6 +205,39 @@
     <audio id="alertSound" src="alert.mp3"></audio>
 
     <script>
+      // Flag to track if running from MIT App Inventor
+      let isRunningFromMIT = false;
+      
+      // Function to be called from MIT App Inventor to indicate the environment
+      function runfrommit() {
+        isRunningFromMIT = true;
+        console.log("Running from MIT App Inventor environment");
+        showNotification("MIT App Inventor detected");
+        
+        // Automatically initialize camera when running from MIT
+        if (androidBridge.hasAndroidBridge) {
+          // If we have Android bridge, we need to check permissions
+          checkAndroidPermissions().then(permissionsOK => {
+            if (permissionsOK) {
+              initCamera();
+            }
+          });
+        } else {
+          // No Android bridge, directly initialize camera
+          initCamera();
+        }
+        
+        // Send acknowledgment to App Inventor if WebViewString is available
+        if (window.AppInventor && window.AppInventor.setWebViewString) {
+          window.AppInventor.setWebViewString("MIT_ENVIRONMENT=ACKNOWLEDGED");
+        }
+        
+        return true; // Return true to confirm successful execution
+      }
+      
+      // Make runfrommit globally available
+      window.runfrommit = runfrommit;
+      
       // Android WebView Bridge
       function AndroidBridge() {
         this.hasAndroidBridge = (typeof Android !== 'undefined');
@@ -603,10 +636,20 @@
           showNotification("Camera started successfully");
           androidBridge.showToast("Drowsiness detection active");
           
+          // If running from MIT App Inventor, send status
+          if (isRunningFromMIT && window.AppInventor && window.AppInventor.setWebViewString) {
+            window.AppInventor.setWebViewString("CAMERA_STATUS=ACTIVE");
+          }
+          
         } catch (error) {
           console.error("Camera error:", error);
           status.textContent = "Camera error!";
           showNotification("Failed to start camera: " + error.message);
+          
+          // If running from MIT App Inventor, send error status
+          if (isRunningFromMIT && window.AppInventor && window.AppInventor.setWebViewString) {
+            window.AppInventor.setWebViewString("CAMERA_STATUS=ERROR");
+          }
           
           // Show Android specific error if in WebView
           if (androidBridge.hasAndroidBridge) {
@@ -640,6 +683,11 @@
         if (event.data && event.data.action === "updatePhoneNumber" && event.data.phoneNumber) {
           receivePhoneNumber(event.data.phoneNumber);
         }
+        
+        // Handle MIT App Inventor specific messages
+        if (event.data && event.data.action === "runfrommit") {
+          runfrommit();
+        }
       });
       
       // Make camera controls available globally for Android to call
@@ -649,6 +697,11 @@
           camera.stop();
           status.textContent = "Camera stopped";
           showNotification("Camera stopped");
+          
+          // If running from MIT App Inventor, send status
+          if (isRunningFromMIT && window.AppInventor && window.AppInventor.setWebViewString) {
+            window.AppInventor.setWebViewString("CAMERA_STATUS=STOPPED");
+          }
         }
       };
       
@@ -675,6 +728,15 @@
           }
         }, 300);
       });
+      
+      // Check if this was loaded in MIT App Inventor automatically
+      // This tries to detect if we're in App Inventor's WebViewer by looking for the AppInventor object
+      if (window.AppInventor && window.AppInventor.setWebViewString) {
+        // We appear to be in MIT App Inventor, so run the function automatically
+        setTimeout(function() {
+          runfrommit();
+        }, 1000); // Short delay to ensure everything is loaded
+      }
     </script>
   </body>
 </html>
