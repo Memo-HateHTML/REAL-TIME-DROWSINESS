@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
+    <meta charset="UTF-8" />
     <title>Anti Drowsiness</title>
     <meta
       name="viewport"
@@ -16,11 +17,69 @@
         padding: 0;
         width: 100%;
         height: 100%;
-        overflow: hidden;
         background: black;
         font-family: Arial, sans-serif;
+        color: white;
       }
 
+      /* SMS Setup Styles */
+      .sms-setup-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        padding: 20px;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        background: black;
+        z-index: 50;
+      }
+
+      .sms-setup-container h2 {
+        margin-bottom: 30px;
+        font-size: 24px;
+        color: white;
+      }
+
+      .sms-setup-container input {
+        width: 100%;
+        max-width: 300px;
+        padding: 12px;
+        margin: 10px 0;
+        border: 1px solid #444;
+        border-radius: 8px;
+        background-color: #1c1c1c;
+        color: white;
+        font-size: 16px;
+      }
+
+      .sms-setup-container input::placeholder {
+        color: #aaa;
+      }
+
+      .sms-setup-container button {
+        width: 100%;
+        max-width: 300px;
+        padding: 12px;
+        background-color: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 20px;
+        transition: background-color 0.3s;
+      }
+
+      .sms-setup-container button:hover,
+      .sms-setup-container button:active {
+        background-color: #0b7dda;
+      }
+
+      /* Main App Styles */
       .container {
         position: relative;
         width: 100%;
@@ -175,7 +234,24 @@
     </style>
   </head>
   <body>
-    <div class="container">
+    <!-- SMS Setup Screen -->
+    <div class="sms-setup-container" id="sms-setup">
+      <h2>Enter Phone Number</h2>
+      <input
+        type="text"
+        id="countryCode"
+        placeholder="Country Code (e.g. +66)"
+      />
+      <input
+        type="text"
+        id="phoneNumber"
+        placeholder="Phone Number (e.g. 812345678)"
+      />
+      <button onclick="saveNumber()">Save & Continue</button>
+    </div>
+
+    <!-- Main App -->
+    <div class="container" id="main-app">
       <!-- Permission overlay -->
       <div id="permission-overlay">
         <h2>Drowsiness Detection System</h2>
@@ -220,6 +296,43 @@
     <audio id="alertSound" src="alert.mp3"></audio>
 
     <script>
+      // Check if phone number is already set
+      document.addEventListener("DOMContentLoaded", function() {
+        const savedNumber = localStorage.getItem("alertPhoneNumber");
+        if (savedNumber) {
+          // If phone number exists, hide SMS setup and show main app
+          document.getElementById("sms-setup").style.display = "none";
+        } else {
+          // If no phone number, keep SMS setup visible and hide main app
+          document.getElementById("main-app").style.opacity = "0.3";
+        }
+      });
+
+      // SMS Setup Function
+      function saveNumber() {
+        const countryCode = document.getElementById("countryCode").value.trim();
+        const phoneNumber = document.getElementById("phoneNumber").value.trim();
+
+        if (!countryCode.startsWith("+") || phoneNumber.length < 6) {
+          alert("Please enter a valid country code and phone number.");
+          return;
+        }
+
+        const fullNumber = countryCode + phoneNumber;
+        localStorage.setItem("alertPhoneNumber", fullNumber);
+        
+        // Hide SMS setup and show main app
+        document.getElementById("sms-setup").style.display = "none";
+        document.getElementById("main-app").style.opacity = "1";
+        
+        // Update phone container with the new number
+        document.getElementById("phone-container").textContent = "Alert Phone: " + fullNumber;
+        
+        // Show notification
+        showNotification("Phone number set: " + fullNumber);
+      }
+
+      // Main App Script
       let port;
       let writer;
 
@@ -488,295 +601,229 @@
           return EAR_THRESHOLD; // Use default until we have enough data
         }
 
-        // Sort and get the lower quartile as the threshold
+        // Sort EAR values and get the lower quartile as a baseline
         const sortedEAR = [...earHistory].sort((a, b) => a - b);
         const lowerQuartileIndex = Math.floor(sortedEAR.length * 0.25);
-        const dynamicThreshold = sortedEAR[lowerQuartileIndex] * 0.85; // 15% below lower quartile
+        const lowerQuartile = sortedEAR[lowerQuartileIndex];
 
-        return Math.min(dynamicThreshold, EAR_THRESHOLD); // Don't go higher than default
+        // Set threshold to 70% of the lower quartile
+        return lowerQuartile * 0.7;
       }
 
-      function resizeCanvas() {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-      }
+      // Initialize MediaPipe Face Mesh
+      async function initCamera() {
+        // Hide permission overlay
+        permissionOverlay.style.display = "none";
 
-      function onResults(results) {
-        updateFPS(); // Update FPS on each frame
+        // Set canvas size to match video
+        canvas.width = video.width;
+        canvas.height = video.height;
 
-        if (video.videoWidth && video.videoHeight) {
-          resizeCanvas();
+        // Update status
+        status.textContent = "Starting camera...";
+
+        try {
+          const faceMesh = new FaceMesh({
+            locateFile: (file) => {
+              return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+            },
+          });
+
+          faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+          });
+
+          faceMesh.onResults(onResults);
+
+          // Start camera
+          camera = new Camera(video, {
+            onFrame: async () => {
+              await faceMesh.send({ image: video });
+            },
+            width: 640,
+            height: 480,
+          });
+
+          await camera.start();
+          status.textContent = "Monitoring...";
+        } catch (error) {
+          console.error("Error starting camera:", error);
+          status.textContent = "Camera error!";
+
+          // Show Android specific error if running in WebView
+          if (androidBridge.hasAndroidBridge) {
+            androidError.style.display = "flex";
+          }
         }
+      }
 
-        ctx.save();
+      // Process results from Face Mesh
+      function onResults(results) {
+        // Update FPS
+        updateFPS();
+
+        // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-        if (
-          results.multiFaceLandmarks &&
-          results.multiFaceLandmarks.length > 0
-        ) {
+        // Draw video frame on canvas (mirrored)
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(
+          results.image,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+        ctx.restore();
+
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
           const landmarks = results.multiFaceLandmarks[0];
+
+          // Draw face mesh
           drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, {
             color: "#C0C0C070",
             lineWidth: 1,
           });
-          drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, {
-            color: "#30FF30",
-            lineWidth: 2,
-          });
-          drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, {
-            color: "#30FF30",
-            lineWidth: 2,
-          });
 
-          const leftEAR = getEAR(landmarks, [33, 160, 158, 133, 153, 144]);
-          const rightEAR = getEAR(landmarks, [362, 385, 387, 263, 373, 380]);
-          const avgEAR = (leftEAR + rightEAR) / 2;
+          // Left eye indices (adjusted for MediaPipe Face Mesh)
+          const leftEyeIndices = [
+            33, 160, 158, 133, 153, 144, // Upper eyelid
+          ];
 
-          // Update EAR history for dynamic threshold
-          if (avgEAR > 0.15) {
-            // Only include valid readings
-            earHistory.push(avgEAR);
-            if (earHistory.length > EAR_HISTORY_SIZE) {
-              earHistory.shift();
-            }
+          // Right eye indices (adjusted for MediaPipe Face Mesh)
+          const rightEyeIndices = [
+            362, 385, 387, 263, 373, 380, // Upper eyelid
+          ];
+
+          // Calculate EAR for both eyes
+          const leftEAR = getEAR(landmarks, leftEyeIndices);
+          const rightEAR = getEAR(landmarks, rightEyeIndices);
+
+          // Average EAR
+          const ear = (leftEAR + rightEAR) / 2.0;
+
+          // Add to history for dynamic threshold
+          if (earHistory.length < EAR_HISTORY_SIZE) {
+            earHistory.push(ear);
+          } else {
+            earHistory.shift();
+            earHistory.push(ear);
           }
 
+          // Get current threshold
           const currentThreshold = getDynamicThreshold();
 
-          const eyeState = avgEAR < currentThreshold ? "Closed" : "Open";
-          const timeToAlert = (
-            (framesForThreeSeconds - consecutiveClosedFrames) /
-            currentFPS
-          ).toFixed(1);
-          const progressToAlert = Math.min(
-            100,
-            (consecutiveClosedFrames / framesForThreeSeconds) * 100
-          ).toFixed(0);
-
-          debug.textContent = `EAR: ${avgEAR.toFixed(
-            2
-          )} | FPS: ${currentFPS} | Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds} | Progress: ${progressToAlert}% | State: ${eyeState}`;
-
-          // Logic for eye state detection with improved recovery
-          if (avgEAR < currentThreshold) {
+          // Check if eyes are closed
+          if (ear < currentThreshold) {
             consecutiveClosedFrames++;
             consecutiveOpenFrames = 0;
           } else {
             consecutiveOpenFrames++;
-            // Only reset closed counter after several confirmed open frames
             if (consecutiveOpenFrames >= RECOVERY_FRAMES) {
               consecutiveClosedFrames = 0;
             }
           }
 
-          // Alert logic - trigger when frames closed reaches the 3-second threshold
+          // Update debug info
+          debug.textContent = `EAR: ${ear.toFixed(2)} | FPS: ${currentFPS} | Threshold: ${currentThreshold.toFixed(
+            2
+          )} | Closed Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds}`;
+
+          // Check if alert should be triggered
           if (consecutiveClosedFrames >= framesForThreeSeconds) {
             if (!isAlertActive) {
-              isAlertActive = true;
-              status.textContent = "ALERT: Eyes closed too long!";
+              // Activate alert
               alertBox.style.display = "flex";
-              alertSound.loop = true;
-              sendVibration();
-              alertSound.play().catch((e) => {
-                console.log("Audio playback failed:", e);
-              });
+              alertSound.play();
+              isAlertActive = true;
+
+              // Send alert to App Inventor if available
               appInventorBridge.sendAlert(true);
 
-              // Send SMS alert with cooldown
-              sendSMSAlert();
+              // Send SMS alert if phone number is available
+              if (alertPhoneNumber) {
+                sendSMSAlert();
+              }
+
+              // Send vibration if serial is connected
+              if (writer) {
+                sendVibration();
+              }
             }
-          } else if (consecutiveOpenFrames >= RECOVERY_FRAMES) {
-            if (isAlertActive) {
-              isAlertActive = false;
-              status.textContent = "Monitoring...";
-              alertBox.style.display = "none";
-              alertSound.pause();
-              alertSound.currentTime = 0;
-              appInventorBridge.sendAlert(false);
-            }
+          } else if (isAlertActive && consecutiveOpenFrames >= RECOVERY_FRAMES) {
+            // Deactivate alert
+            alertBox.style.display = "none";
+            isAlertActive = false;
+
+            // Send alert state to App Inventor
+            appInventorBridge.sendAlert(false);
+          }
+
+          // Draw eyes with color based on state
+          const eyeColor = ear < currentThreshold ? "red" : "green";
+          
+          // Draw left eye
+          drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, {
+            color: eyeColor,
+            lineWidth: 2,
+          });
+          
+          // Draw right eye
+          drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, {
+            color: eyeColor,
+            lineWidth: 2,
+          });
+        }
+      }
+
+      // Check Android permissions
+      async function checkAndroidPermissions() {
+        if (androidBridge.hasAndroidBridge) {
+          const hasPermission = androidBridge.hasCameraPermission();
+          if (!hasPermission) {
+            const granted = androidBridge.requestCameraPermission();
+            return granted;
+          }
+          return true;
+        }
+        return true; // Not on Android, assume permissions are OK
+      }
+
+      // Event listeners
+      startButton.addEventListener("click", async () => {
+        if (androidBridge.hasAndroidBridge) {
+          const permissionsOK = await checkAndroidPermissions();
+          if (permissionsOK) {
+            initCamera();
+          } else {
+            status.textContent = "Camera permission denied";
+            androidError.style.display = "flex";
           }
         } else {
-          debug.textContent = `EAR: N/A | FPS: ${currentFPS} | State: No Face`;
-          // Don't change alert state when face is temporarily lost
-        }
-
-        ctx.restore();
-      }
-
-      // Initialize FaceMesh
-      const faceMesh = new FaceMesh({
-        locateFile: (file) =>
-          `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-      });
-
-      faceMesh.setOptions({
-        maxNumFaces: 1,
-        refineLandmarks: true,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      });
-
-      faceMesh.onResults(onResults);
-
-      // Check for Android WebView camera permissions
-      async function checkAndroidPermissions() {
-        // If using Android bridge, check permissions
-        if (androidBridge.hasAndroidBridge) {
-          if (!androidBridge.hasCameraPermission()) {
-            // Request permission through Android bridge
-            const permissionGranted = androidBridge.requestCameraPermission();
-            if (!permissionGranted) {
-              showAndroidError();
-              return false;
-            }
-          }
-        }
-        return true;
-      }
-
-      function showAndroidError() {
-        androidError.style.display = "flex";
-        permissionOverlay.style.display = "none";
-      }
-
-      // Initialize the camera setup
-      async function initCamera() {
-        connectSerial();
-        permissionOverlay.style.display = "none";
-        androidError.style.display = "none";
-
-        // Check Android permissions first if applicable
-        const permissionsOK = await checkAndroidPermissions();
-        if (!permissionsOK) {
-          return;
-        }
-
-        try {
-          // Check if getUserMedia is supported
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("getUserMedia not supported");
-          }
-
-          // First check if camera is available by requesting user permission
-          await navigator.mediaDevices.getUserMedia({ video: true });
-
-          // Initialize camera with MediaPipe
-          camera = new Camera(video, {
-            onFrame: async () => {
-              await faceMesh.send({ image: video });
-            },
-            width: 640, // Reduced resolution for better performance on mobile
-            height: 480,
-            facingMode: "user", // Front camera for better face detection
-          });
-
-          await camera.start();
-          status.textContent = "Monitoring...";
-          showNotification("Camera started successfully");
-          androidBridge.showToast("Drowsiness detection active");
-
-          // If running from MIT App Inventor, send status
-        } catch (error) {
-          console.error("Camera error:", error);
-          status.textContent = "Camera error!";
-          showNotification("Failed to start camera: " + error.message);
-
-          // Show Android specific error if in WebView
-          if (androidBridge.hasAndroidBridge) {
-            showAndroidError();
-          } else {
-            // Show regular permission overlay again
-            permissionOverlay.style.display = "flex";
-          }
-        }
-      }
-
-      // Add event listeners
-      startButton.addEventListener("click", () => {
-        initCamera();
-      });
-
-      retryButton.addEventListener("click", () => {
-        initCamera();
-      });
-
-      // Handle messages from Android
-      window.addEventListener("message", function (event) {
-        if (event.data && event.data.action === "getAlertStatus") {
-          appInventorBridge.sendAlert(isAlertActive);
-        }
-
-        if (event.data && event.data.action === "cameraPermissionGranted") {
           initCamera();
         }
+      });
 
-        if (
-          event.data &&
-          event.data.action === "updatePhoneNumber" &&
-          event.data.phoneNumber
-        ) {
-          receivePhoneNumber(event.data.phoneNumber);
-        }
-
-        // Handle MIT App Inventor specific messages
-        if (event.data && event.data.action === "runfrommit") {
-          runfrommit();
+      retryButton.addEventListener("click", async () => {
+        androidError.style.display = "none";
+        const permissionsOK = await checkAndroidPermissions();
+        if (permissionsOK) {
+          initCamera();
         }
       });
 
-      // Make camera controls available globally for Android to call
-      window.startCamera = initCamera;
-      window.stopCamera = function () {
-        if (camera) {
-          camera.stop();
-          status.textContent = "Camera stopped";
-          showNotification("Camera stopped");
-
-          // If running from MIT App Inventor, send status
-          if (
-            isRunningFromMIT &&
-            window.AppInventor &&
-            window.AppInventor.setWebViewString
-          ) {
-            window.AppInventor.setWebViewString("CAMERA_STATUS=STOPPED");
-          }
-        }
-      };
-
-      // Handle page visibility changes (app going to background)
-      document.addEventListener("visibilitychange", function () {
-        if (document.hidden && camera) {
-          // Page is hidden (app in background)
-          camera.stop();
-        } else if (!document.hidden && camera) {
-          // Page is visible again (app in foreground)
-          camera.start().catch((error) => {
-            console.error("Error restarting camera:", error);
-            initCamera(); // Try full reinit if simple restart fails
-          });
+      // Resize handler
+      window.addEventListener("resize", () => {
+        if (canvas) {
+          canvas.width = video.width;
+          canvas.height = video.height;
         }
       });
-
-      // Handle orientation changes
-      window.addEventListener("orientationchange", function () {
-        // Give time for orientation to complete
-        setTimeout(() => {
-          if (video.videoWidth && video.videoHeight) {
-            resizeCanvas();
-          }
-        }, 300);
-      });
-
-      // Check if this was loaded in MIT App Inventor automatically
-      // This tries to detect if we're in App Inventor's WebViewer by looking for the AppInventor object
-      if (window.AppInventor && window.AppInventor.setWebViewString) {
-        // We appear to be in MIT App Inventor, so run the function automatically
-        setTimeout(function () {
-          runfrommit();
-        }, 1000); // Short delay to ensure everything is loaded
-      }
     </script>
   </body>
 </html>
