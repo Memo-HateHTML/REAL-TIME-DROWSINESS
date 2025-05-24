@@ -1,7 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8" />
     <title>Anti Drowsiness</title>
     <meta
       name="viewport"
@@ -17,69 +16,11 @@
         padding: 0;
         width: 100%;
         height: 100%;
+        overflow: hidden;
         background: black;
         font-family: Arial, sans-serif;
-        color: white;
       }
 
-      /* SMS Setup Styles */
-      .sms-setup-container {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        height: 100%;
-        padding: 20px;
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        background: black;
-        z-index: 50;
-      }
-
-      .sms-setup-container h2 {
-        margin-bottom: 30px;
-        font-size: 24px;
-        color: white;
-      }
-
-      .sms-setup-container input {
-        width: 100%;
-        max-width: 300px;
-        padding: 12px;
-        margin: 10px 0;
-        border: 1px solid #444;
-        border-radius: 8px;
-        background-color: #1c1c1c;
-        color: white;
-        font-size: 16px;
-      }
-
-      .sms-setup-container input::placeholder {
-        color: #aaa;
-      }
-
-      .sms-setup-container button {
-        width: 100%;
-        max-width: 300px;
-        padding: 12px;
-        background-color: #2196f3;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 16px;
-        margin-top: 20px;
-        transition: background-color 0.3s;
-      }
-
-      .sms-setup-container button:hover,
-      .sms-setup-container button:active {
-        background-color: #0b7dda;
-      }
-
-      /* Main App Styles */
       .container {
         position: relative;
         width: 100%;
@@ -167,6 +108,79 @@
         border-radius: 5px;
         font-size: 14px;
         z-index: 10;
+        cursor: pointer;
+      }
+
+      /* SMS Setup overlay */
+      #sms-setup-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.95);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 25;
+        color: white;
+        text-align: center;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      #sms-setup-overlay h2 {
+        margin-bottom: 30px;
+        font-size: 24px;
+        color: white;
+      }
+
+      #sms-setup-overlay input {
+        width: 100%;
+        max-width: 300px;
+        padding: 12px;
+        margin: 10px 0;
+        border: 1px solid #444;
+        border-radius: 8px;
+        background-color: #1c1c1c;
+        color: white;
+        font-size: 16px;
+        box-sizing: border-box;
+      }
+
+      #sms-setup-overlay input::placeholder {
+        color: #aaa;
+      }
+
+      #sms-setup-overlay button {
+        width: 100%;
+        max-width: 300px;
+        padding: 12px;
+        background-color: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 20px;
+        transition: background-color 0.3s;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      #sms-setup-overlay button:hover,
+      #sms-setup-overlay button:active {
+        background-color: #0b7dda;
+      }
+
+      .skip-button {
+        background-color: #666 !important;
+        margin-top: 15px !important;
+      }
+
+      .skip-button:hover,
+      .skip-button:active {
+        background-color: #555 !important;
       }
 
       /* Permission overlay */
@@ -234,26 +248,31 @@
     </style>
   </head>
   <body>
-    <!-- SMS Setup Screen -->
-    <div class="sms-setup-container" id="sms-setup">
-      <h2>Enter Phone Number</h2>
-      <input
-        type="text"
-        id="countryCode"
-        placeholder="Country Code (e.g. +66)"
-      />
-      <input
-        type="text"
-        id="phoneNumber"
-        placeholder="Phone Number (e.g. 812345678)"
-      />
-      <button onclick="saveNumber()">Save & Continue</button>
-    </div>
+    <div class="container">
+      <!-- SMS Setup overlay -->
+      <div id="sms-setup-overlay">
+        <h2>SMS Alert Setup</h2>
+        <div class="permission-text">
+          <p>Enter a phone number to receive SMS alerts when drowsiness is detected.</p>
+          <p>This is optional - you can skip this step if you don't want SMS alerts.</p>
+        </div>
+        <input
+          type="text"
+          id="countryCode"
+          placeholder="Country Code (e.g. +66)"
+          value="+1"
+        />
+        <input
+          type="text"
+          id="phoneNumber"
+          placeholder="Phone Number (e.g. 812345678)"
+        />
+        <button onclick="saveSMSNumber()">Save & Continue</button>
+        <button class="skip-button" onclick="skipSMSSetup()">Skip SMS Setup</button>
+      </div>
 
-    <!-- Main App -->
-    <div class="container" id="main-app">
       <!-- Permission overlay -->
-      <div id="permission-overlay">
+      <div id="permission-overlay" style="display: none;">
         <h2>Drowsiness Detection System</h2>
         <div class="permission-text">
           <p>
@@ -286,55 +305,19 @@
 
       <video id="video" autoplay muted playsinline></video>
       <canvas id="output"></canvas>
-      <div id="status">Waiting for camera permission...</div>
+      <div id="status">Setting up SMS alerts...</div>
       <div id="alert"><div id="alert-text">EYES CLOSED TOO LONG!</div></div>
       <div id="debug">EAR: 0.00 | FPS: 0 | State: Not Started</div>
       <div id="notification">SMS Alert: Inactive</div>
-      <div id="phone-container">Alert Phone: Default</div>
+      <div id="phone-container" onclick="editPhoneNumber()">Alert Phone: Setting up...</div>
     </div>
 
     <audio id="alertSound" src="alert.mp3"></audio>
 
     <script>
-      // Check if phone number is already set
-      document.addEventListener("DOMContentLoaded", function() {
-        const savedNumber = localStorage.getItem("alertPhoneNumber");
-        if (savedNumber) {
-          // If phone number exists, hide SMS setup and show main app
-          document.getElementById("sms-setup").style.display = "none";
-        } else {
-          // If no phone number, keep SMS setup visible and hide main app
-          document.getElementById("main-app").style.opacity = "0.3";
-        }
-      });
-
-      // SMS Setup Function
-      function saveNumber() {
-        const countryCode = document.getElementById("countryCode").value.trim();
-        const phoneNumber = document.getElementById("phoneNumber").value.trim();
-
-        if (!countryCode.startsWith("+") || phoneNumber.length < 6) {
-          alert("Please enter a valid country code and phone number.");
-          return;
-        }
-
-        const fullNumber = countryCode + phoneNumber;
-        localStorage.setItem("alertPhoneNumber", fullNumber);
-        
-        // Hide SMS setup and show main app
-        document.getElementById("sms-setup").style.display = "none";
-        document.getElementById("main-app").style.opacity = "1";
-        
-        // Update phone container with the new number
-        document.getElementById("phone-container").textContent = "Alert Phone: " + fullNumber;
-        
-        // Show notification
-        showNotification("Phone number set: " + fullNumber);
-      }
-
-      // Main App Script
       let port;
       let writer;
+      let isRunningFromMIT = false;
 
       async function connectSerial() {
         try {
@@ -345,34 +328,43 @@
           encoder.readable.pipeTo(port.writable);
           writer = encoder.writable.getWriter();
 
-          alert("Connected to ESP32");
+          showNotification("Connected to ESP32");
         } catch (err) {
-          // alert("Connection failed: " + err);
+          // Connection failed - continue without serial
         }
       }
 
       async function sendVibration() {
-        await writer.write("vibrate:5\n");
+        if (writer) {
+          try {
+            await writer.write("vibrate:5\n");
+          } catch (err) {
+            console.log("Vibration send failed:", err);
+          }
+        }
       }
-      // Flag to track if running from MIT App Inventor
 
-      // Function to be called from MIT App Inventor to indicate the environment
+      // Function to be called from MIT App Inventor
       function runfrommit() {
         isRunningFromMIT = true;
         console.log("Running from MIT App Inventor environment");
         showNotification("MIT App Inventor detected");
 
+        // Check if we already have phone number configured
+        const savedNumber = getStoredPhoneNumber();
+        if (savedNumber) {
+          skipSMSSetup();
+        }
+
         // Automatically initialize camera when running from MIT
         if (androidBridge.hasAndroidBridge) {
-          // If we have Android bridge, we need to check permissions
           checkAndroidPermissions().then((permissionsOK) => {
             if (permissionsOK) {
-              initCamera();
+              showPermissionOverlay();
             }
           });
         } else {
-          // No Android bridge, directly initialize camera
-          initCamera();
+          showPermissionOverlay();
         }
 
         // Send acknowledgment to App Inventor if WebViewString is available
@@ -380,7 +372,7 @@
           window.AppInventor.setWebViewString("MIT_ENVIRONMENT=ACKNOWLEDGED");
         }
 
-        return true; // Return true to confirm successful execution
+        return true;
       }
 
       // Make runfrommit globally available
@@ -394,14 +386,14 @@
           if (this.hasAndroidBridge && Android.requestCameraPermission) {
             return Android.requestCameraPermission();
           }
-          return true; // Return true if no Android bridge (regular browser)
+          return true;
         };
 
         this.hasCameraPermission = function () {
           if (this.hasAndroidBridge && Android.hasCameraPermission) {
             return Android.hasCameraPermission();
           }
-          return true; // Return true if no Android bridge (regular browser)
+          return true;
         };
 
         this.showToast = function (message) {
@@ -425,42 +417,96 @@
       const debug = document.getElementById("debug");
       const notification = document.getElementById("notification");
       const phoneContainer = document.getElementById("phone-container");
+      const smsSetupOverlay = document.getElementById("sms-setup-overlay");
       const permissionOverlay = document.getElementById("permission-overlay");
       const startButton = document.getElementById("start-button");
       const androidError = document.getElementById("android-error");
       const retryButton = document.getElementById("retry-button");
 
       // Adjusted threshold for more accurate eye closure detection
-      const EAR_THRESHOLD = 0.2; // Threshold for eye closure
-      const TARGET_ALERT_TIME = 3; // Alert after 3 seconds of eyes closed
-      const RECOVERY_FRAMES = 3; // Number of open frames needed to reset alert
-      const SMS_COOLDOWN_TIME = 15000; // 15 seconds cooldown for SMS alerts
-      const savedNumber = localStorage.getItem("alertPhoneNumber");
-      console.log("SMS will be sent to:", savedNumber);
+      const EAR_THRESHOLD = 0.2;
+      const TARGET_ALERT_TIME = 3;
+      const RECOVERY_FRAMES = 3;
+      const SMS_COOLDOWN_TIME = 15000;
 
-      // SMS Configuration using API key instead of Account SID/Auth Token
+      // SMS Configuration
       const twilioApiKey = "SK361e6faad3ec68d3c14e0b925c3dde47";
       const twilioApiSecret = "oAZyaPgsFF7oEzbVT1hRktGuiIu9wWL1";
-      const twilioAccountSid = "AC7de93db1c7917508d40746d5c34a0f1e"; // Still need account SID for URL
+      const twilioAccountSid = "AC7de93db1c7917508d40746d5c34a0f1e";
       const twilioFromNumber = "+18166246916";
-      let alertPhoneNumber = savedNumber; // Default phone number
-      const alertMessage = "Drowsy Detect SMS Direct to this number";
+      let alertPhoneNumber = "";
+      const alertMessage = "DROWSINESS ALERT: Driver appears to be falling asleep. Please check immediately!";
 
       // Track last SMS sent time
       let lastSMSSentTime = 0;
       let camera = null;
 
+      // SMS Setup Functions
+      function getStoredPhoneNumber() {
+        return sessionStorage.getItem("alertPhoneNumber") || "";
+      }
+
+      function saveSMSNumber() {
+        const countryCode = document.getElementById("countryCode").value.trim();
+        const phoneNumber = document.getElementById("phoneNumber").value.trim();
+
+        if (!countryCode.startsWith("+")) {
+          alert("Please enter a valid country code starting with +");
+          return;
+        }
+
+        if (phoneNumber.length < 6) {
+          alert("Please enter a valid phone number");
+          return;
+        }
+
+        const fullNumber = countryCode + phoneNumber;
+        alertPhoneNumber = fullNumber;
+        sessionStorage.setItem("alertPhoneNumber", fullNumber);
+        
+        phoneContainer.textContent = "Alert Phone: " + fullNumber;
+        showNotification("SMS alerts configured for " + fullNumber);
+        showPermissionOverlay();
+      }
+
+      function skipSMSSetup() {
+        alertPhoneNumber = getStoredPhoneNumber();
+        if (alertPhoneNumber) {
+          phoneContainer.textContent = "Alert Phone: " + alertPhoneNumber;
+        } else {
+          phoneContainer.textContent = "Alert Phone: SMS Disabled";
+        }
+        showPermissionOverlay();
+      }
+
+      function showPermissionOverlay() {
+        smsSetupOverlay.style.display = "none";
+        permissionOverlay.style.display = "flex";
+        status.textContent = "Waiting for camera permission...";
+      }
+
+      function editPhoneNumber() {
+        // Show SMS setup overlay again to edit number
+        permissionOverlay.style.display = "none";
+        smsSetupOverlay.style.display = "flex";
+        
+        // Pre-fill current number if exists
+        if (alertPhoneNumber) {
+          const match = alertPhoneNumber.match(/^(\+\d+)(.+)$/);
+          if (match) {
+            document.getElementById("countryCode").value = match[1];
+            document.getElementById("phoneNumber").value = match[2];
+          }
+        }
+      }
+
       // Function to receive phone number from external source
       function receivePhoneNumber(phoneNumber) {
         console.log("Received phone number: " + phoneNumber);
-        // Update the alert phone number
         alertPhoneNumber = phoneNumber;
-        // Display it in the UI
+        sessionStorage.setItem("alertPhoneNumber", phoneNumber);
         phoneContainer.textContent = "Alert Phone: " + phoneNumber;
-        // Show notification
         showNotification("Alert phone number updated: " + phoneNumber);
-
-        // Show toast on Android if available
         androidBridge.showToast("Alert phone updated: " + phoneNumber);
       }
 
@@ -470,13 +516,13 @@
       // FPS calculation
       let frameTimestamps = [];
       let currentFPS = 0;
-      let framesForThreeSeconds = 30; // Initial guess, will be adjusted based on actual FPS
+      let framesForThreeSeconds = 30;
 
       let consecutiveClosedFrames = 0;
       let consecutiveOpenFrames = 0;
       let isAlertActive = false;
       let earHistory = [];
-      const EAR_HISTORY_SIZE = 30; // Track EAR values to establish baseline
+      const EAR_HISTORY_SIZE = 30;
 
       const appInventorBridge = {
         sendAlert: function (isActive) {
@@ -488,8 +534,13 @@
         },
       };
 
-      // Function to send SMS alert with Twilio using API keys
+      // Function to send SMS alert with Twilio
       function sendSMSAlert() {
+        if (!alertPhoneNumber) {
+          showNotification("SMS alerts not configured");
+          return;
+        }
+
         const currentTime = Date.now();
 
         // Check cooldown period
@@ -505,8 +556,6 @@
         lastSMSSentTime = currentTime;
 
         showNotification(`Sending SMS alert to ${alertPhoneNumber}...`);
-
-        // Android toast if available
         androidBridge.showToast("Sending SMS alert...");
 
         // Prepare data for the POST request
@@ -516,7 +565,7 @@
         data.append("To", alertPhoneNumber);
         data.append("Body", alertMessage);
 
-        // Send the POST request to Twilio API with API Key authentication
+        // Send the POST request to Twilio API
         fetch(url, {
           method: "POST",
           body: data,
@@ -550,7 +599,6 @@
         notification.textContent = message;
         notification.style.opacity = 1;
 
-        // Hide notification after 3 seconds
         setTimeout(() => {
           notification.style.opacity = 0;
         }, 3000);
@@ -561,18 +609,15 @@
         const now = performance.now();
         frameTimestamps.push(now);
 
-        // Keep only the last 30 frames for FPS calculation
         if (frameTimestamps.length > 30) {
           frameTimestamps.shift();
         }
 
-        // Need at least 10 frames to calculate FPS
         if (frameTimestamps.length >= 10) {
           const timeElapsed = now - frameTimestamps[0];
           const frameCount = frameTimestamps.length - 1;
           if (timeElapsed > 0) {
             currentFPS = ((1000 * frameCount) / timeElapsed).toFixed(1);
-            // Calculate how many frames equal 3 seconds
             framesForThreeSeconds = Math.ceil(currentFPS * TARGET_ALERT_TIME);
           }
         }
@@ -590,136 +635,83 @@
         const vertical2 = Math.hypot(p1.x - p3.x, p1.y - p3.y);
         const horizontal = Math.hypot(p0.x - p5.x, p0.y - p5.y);
 
-        // Avoid division by zero
         if (horizontal === 0) return 1.0;
         return (vertical1 + vertical2) / (2.0 * horizontal);
       }
 
-      // Get dynamic threshold based on user's normal eye state
       function getDynamicThreshold() {
         if (earHistory.length < EAR_HISTORY_SIZE) {
-          return EAR_THRESHOLD; // Use default until we have enough data
+          return EAR_THRESHOLD;
         }
 
-        // Sort EAR values and get the lower quartile as a baseline
         const sortedEAR = [...earHistory].sort((a, b) => a - b);
         const lowerQuartileIndex = Math.floor(sortedEAR.length * 0.25);
-        const lowerQuartile = sortedEAR[lowerQuartileIndex];
+        const dynamicThreshold = sortedEAR[lowerQuartileIndex] * 0.85;
 
-        // Set threshold to 70% of the lower quartile
-        return lowerQuartile * 0.7;
+        return Math.min(dynamicThreshold, EAR_THRESHOLD);
       }
 
-      // Initialize MediaPipe Face Mesh
-      async function initCamera() {
-        // Hide permission overlay
-        permissionOverlay.style.display = "none";
-
-        // Set canvas size to match video
-        canvas.width = video.width;
-        canvas.height = video.height;
-
-        // Update status
-        status.textContent = "Starting camera...";
-
-        try {
-          const faceMesh = new FaceMesh({
-            locateFile: (file) => {
-              return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-            },
-          });
-
-          faceMesh.setOptions({
-            maxNumFaces: 1,
-            refineLandmarks: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5,
-          });
-
-          faceMesh.onResults(onResults);
-
-          // Start camera
-          camera = new Camera(video, {
-            onFrame: async () => {
-              await faceMesh.send({ image: video });
-            },
-            width: 640,
-            height: 480,
-          });
-
-          await camera.start();
-          status.textContent = "Monitoring...";
-        } catch (error) {
-          console.error("Error starting camera:", error);
-          status.textContent = "Camera error!";
-
-          // Show Android specific error if running in WebView
-          if (androidBridge.hasAndroidBridge) {
-            androidError.style.display = "flex";
-          }
-        }
+      function resizeCanvas() {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
       }
 
-      // Process results from Face Mesh
       function onResults(results) {
-        // Update FPS
         updateFPS();
 
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (video.videoWidth && video.videoHeight) {
+          resizeCanvas();
+        }
 
-        // Draw video frame on canvas (mirrored)
         ctx.save();
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(
-          results.image,
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-        ctx.restore();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        if (
+          results.multiFaceLandmarks &&
+          results.multiFaceLandmarks.length > 0
+        ) {
           const landmarks = results.multiFaceLandmarks[0];
-
-          // Draw face mesh
           drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, {
             color: "#C0C0C070",
             lineWidth: 1,
           });
+          drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, {
+            color: "#30FF30",
+            lineWidth: 2,
+          });
+          drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, {
+            color: "#30FF30",
+            lineWidth: 2,
+          });
 
-          // Left eye indices (adjusted for MediaPipe Face Mesh)
-          const leftEyeIndices = [
-            33, 160, 158, 133, 153, 144, // Upper eyelid
-          ];
+          const leftEAR = getEAR(landmarks, [33, 160, 158, 133, 153, 144]);
+          const rightEAR = getEAR(landmarks, [362, 385, 387, 263, 373, 380]);
+          const avgEAR = (leftEAR + rightEAR) / 2;
 
-          // Right eye indices (adjusted for MediaPipe Face Mesh)
-          const rightEyeIndices = [
-            362, 385, 387, 263, 373, 380, // Upper eyelid
-          ];
-
-          // Calculate EAR for both eyes
-          const leftEAR = getEAR(landmarks, leftEyeIndices);
-          const rightEAR = getEAR(landmarks, rightEyeIndices);
-
-          // Average EAR
-          const ear = (leftEAR + rightEAR) / 2.0;
-
-          // Add to history for dynamic threshold
-          if (earHistory.length < EAR_HISTORY_SIZE) {
-            earHistory.push(ear);
-          } else {
-            earHistory.shift();
-            earHistory.push(ear);
+          if (avgEAR > 0.15) {
+            earHistory.push(avgEAR);
+            if (earHistory.length > EAR_HISTORY_SIZE) {
+              earHistory.shift();
+            }
           }
 
-          // Get current threshold
           const currentThreshold = getDynamicThreshold();
+          const eyeState = avgEAR < currentThreshold ? "Closed" : "Open";
+          const timeToAlert = (
+            (framesForThreeSeconds - consecutiveClosedFrames) /
+            currentFPS
+          ).toFixed(1);
+          const progressToAlert = Math.min(
+            100,
+            (consecutiveClosedFrames / framesForThreeSeconds) * 100
+          ).toFixed(0);
 
-          // Check if eyes are closed
-          if (ear < currentThreshold) {
+          debug.textContent = `EAR: ${avgEAR.toFixed(
+            2
+          )} | FPS: ${currentFPS} | Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds} | Progress: ${progressToAlert}% | State: ${eyeState}`;
+
+          if (avgEAR < currentThreshold) {
             consecutiveClosedFrames++;
             consecutiveOpenFrames = 0;
           } else {
@@ -729,99 +721,199 @@
             }
           }
 
-          // Update debug info
-          debug.textContent = `EAR: ${ear.toFixed(2)} | FPS: ${currentFPS} | Threshold: ${currentThreshold.toFixed(
-            2
-          )} | Closed Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds}`;
-
-          // Check if alert should be triggered
           if (consecutiveClosedFrames >= framesForThreeSeconds) {
             if (!isAlertActive) {
-              // Activate alert
-              alertBox.style.display = "flex";
-              alertSound.play();
               isAlertActive = true;
-
-              // Send alert to App Inventor if available
+              status.textContent = "ALERT: Eyes closed too long!";
+              alertBox.style.display = "flex";
+              alertSound.loop = true;
+              sendVibration();
+              alertSound.play().catch((e) => {
+                console.log("Audio playback failed:", e);
+              });
               appInventorBridge.sendAlert(true);
-
-              // Send SMS alert if phone number is available
-              if (alertPhoneNumber) {
-                sendSMSAlert();
-              }
-
-              // Send vibration if serial is connected
-              if (writer) {
-                sendVibration();
-              }
+              sendSMSAlert();
             }
-          } else if (isAlertActive && consecutiveOpenFrames >= RECOVERY_FRAMES) {
-            // Deactivate alert
-            alertBox.style.display = "none";
-            isAlertActive = false;
-
-            // Send alert state to App Inventor
-            appInventorBridge.sendAlert(false);
-          }
-
-          // Draw eyes with color based on state
-          const eyeColor = ear < currentThreshold ? "red" : "green";
-          
-          // Draw left eye
-          drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, {
-            color: eyeColor,
-            lineWidth: 2,
-          });
-          
-          // Draw right eye
-          drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, {
-            color: eyeColor,
-            lineWidth: 2,
-          });
-        }
-      }
-
-      // Check Android permissions
-      async function checkAndroidPermissions() {
-        if (androidBridge.hasAndroidBridge) {
-          const hasPermission = androidBridge.hasCameraPermission();
-          if (!hasPermission) {
-            const granted = androidBridge.requestCameraPermission();
-            return granted;
-          }
-          return true;
-        }
-        return true; // Not on Android, assume permissions are OK
-      }
-
-      // Event listeners
-      startButton.addEventListener("click", async () => {
-        if (androidBridge.hasAndroidBridge) {
-          const permissionsOK = await checkAndroidPermissions();
-          if (permissionsOK) {
-            initCamera();
-          } else {
-            status.textContent = "Camera permission denied";
-            androidError.style.display = "flex";
+          } else if (consecutiveOpenFrames >= RECOVERY_FRAMES) {
+            if (isAlertActive) {
+              isAlertActive = false;
+              status.textContent = "Monitoring...";
+              alertBox.style.display = "none";
+              alertSound.pause();
+              alertSound.currentTime = 0;
+              appInventorBridge.sendAlert(false);
+            }
           }
         } else {
-          initCamera();
+          debug.textContent = `EAR: N/A | FPS: ${currentFPS} | State: No Face`;
         }
+
+        ctx.restore();
+      }
+
+      // Initialize FaceMesh
+      const faceMesh = new FaceMesh({
+        locateFile: (file) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
       });
 
-      retryButton.addEventListener("click", async () => {
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+
+      faceMesh.onResults(onResults);
+
+      async function checkAndroidPermissions() {
+        if (androidBridge.hasAndroidBridge) {
+          if (!androidBridge.hasCameraPermission()) {
+            const permissionGranted = androidBridge.requestCameraPermission();
+            if (!permissionGranted) {
+              showAndroidError();
+              return false;
+            }
+          }
+        }
+        return true;
+      }
+
+      function showAndroidError() {
+        androidError.style.display = "flex";
+        permissionOverlay.style.display = "none";
+      }
+
+      async function initCamera() {
+        connectSerial();
+        permissionOverlay.style.display = "none";
         androidError.style.display = "none";
+
         const permissionsOK = await checkAndroidPermissions();
-        if (permissionsOK) {
+        if (!permissionsOK) {
+          return;
+        }
+
+        try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("getUserMedia not supported");
+          }
+
+          await navigator.mediaDevices.getUserMedia({ video: true });
+
+          camera = new Camera(video, {
+            onFrame: async () => {
+              await faceMesh.send({ image: video });
+            },
+            width: 640,
+            height: 480,
+            facingMode: "user",
+          });
+
+          await camera.start();
+          status.textContent = "Monitoring...";
+          showNotification("Camera started successfully");
+          androidBridge.showToast("Drowsiness detection active");
+
+        } catch (error) {
+          console.error("Camera error:", error);
+          status.textContent = "Camera error!";
+          showNotification("Failed to start camera: " + error.message);
+
+          if (androidBridge.hasAndroidBridge) {
+            showAndroidError();
+          } else {
+            permissionOverlay.style.display = "flex";
+          }
+        }
+      }
+
+      // Add event listeners
+      startButton.addEventListener("click", () => {
+        initCamera();
+      });
+
+      retryButton.addEventListener("click", () => {
+        initCamera();
+      });
+
+      // Handle messages from Android
+      window.addEventListener("message", function (event) {
+        if (event.data && event.data.action === "getAlertStatus") {
+          appInventorBridge.sendAlert(isAlertActive);
+        }
+
+        if (event.data && event.data.action === "cameraPermissionGranted") {
           initCamera();
+        }
+
+        if (
+          event.data &&
+          event.data.action === "updatePhoneNumber" &&
+          event.data.phoneNumber
+        ) {
+          receivePhoneNumber(event.data.phoneNumber);
+        }
+
+        if (event.data && event.data.action === "runfrommit") {
+          runfrommit();
         }
       });
 
-      // Resize handler
-      window.addEventListener("resize", () => {
-        if (canvas) {
-          canvas.width = video.width;
-          canvas.height = video.height;
+      // Make camera controls available globally
+      window.startCamera = initCamera;
+      window.stopCamera = function () {
+        if (camera) {
+          camera.stop();
+          status.textContent = "Camera stopped";
+          showNotification("Camera stopped");
+
+          if (
+            isRunningFromMIT &&
+            window.AppInventor &&
+            window.AppInventor.setWebViewString
+          ) {
+            window.AppInventor.setWebViewString("CAMERA_STATUS=STOPPED");
+          }
+        }
+      };
+
+      // Handle page visibility changes
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden && camera) {
+          camera.stop();
+        } else if (!document.hidden && camera) {
+          camera.start().catch((error) => {
+            console.error("Error restarting camera:", error);
+            initCamera();
+          });
+        }
+      });
+
+      // Handle orientation changes
+      window.addEventListener("orientationchange", function () {
+        setTimeout(() => {
+          if (video.videoWidth && video.videoHeight) {
+            resizeCanvas();
+          }
+        }, 300);
+      });
+
+      // Initialize app based on environment
+      window.addEventListener("load", function() {
+        // Check if we have a saved phone number
+        const savedNumber = getStoredPhoneNumber();
+        if (savedNumber) {
+          alertPhoneNumber = savedNumber;
+          phoneContainer.textContent = "Alert Phone: " + savedNumber;
+          skipSMSSetup();
+        }
+
+        // Check if this was loaded in MIT App Inventor automatically
+        if (window.AppInventor && window.AppInventor.setWebViewString) {
+          setTimeout(function () {
+            runfrommit();
+          }, 1000);
         }
       });
     </script>
