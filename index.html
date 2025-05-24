@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Drowsiness Detection with SMS Alert</title>
+    <title>Anti Drowsiness</title>
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
@@ -104,11 +104,10 @@
         right: 10px;
         background-color: rgba(0, 0, 0, 0.7);
         color: white;
-        padding: 15px;
+        padding: 10px;
         border-radius: 5px;
         font-size: 14px;
         z-index: 10;
-        width: 250px;
       }
 
       /* Permission overlay */
@@ -173,127 +172,6 @@
         padding: 20px;
         box-sizing: border-box;
       }
-
-      /* Phone input form styles */
-      .phone-form-title {
-        margin-top: 0;
-        margin-bottom: 10px;
-        font-size: 16px;
-        font-weight: bold;
-      }
-
-      .phone-input-group {
-        display: flex;
-        margin-bottom: 10px;
-      }
-
-      .country-code-input {
-        width: 60px;
-        padding: 8px;
-        border: 1px solid #444;
-        border-radius: 4px 0 0 4px;
-        background-color: rgba(30, 30, 30, 0.8);
-        color: white;
-      }
-
-      .phone-number-input {
-        flex: 1;
-        padding: 8px;
-        border: 1px solid #444;
-        border-radius: 0 4px 4px 0;
-        background-color: rgba(30, 30, 30, 0.8);
-        color: white;
-      }
-
-      .save-button {
-        width: 100%;
-        padding: 8px;
-        background-color: #2196f3;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-        -webkit-tap-highlight-color: transparent;
-      }
-
-      .save-button:hover,
-      .save-button:active {
-        background-color: #0b7dda;
-      }
-
-      .error-message {
-        color: #ff6b6b;
-        font-size: 12px;
-        margin-top: 5px;
-        display: none;
-      }
-
-      .current-phone {
-        font-size: 12px;
-        margin-top: 8px;
-        color: #aaa;
-      }
-
-      /* Toggle for mesh visibility */
-      #mesh-toggle-container {
-        position: absolute;
-        top: 50px;
-        left: 10px;
-        background-color: rgba(0, 0, 0, 0.7);
-        color: white;
-        padding: 10px;
-        border-radius: 5px;
-        font-size: 14px;
-        z-index: 10;
-      }
-
-      .toggle-switch {
-        position: relative;
-        display: inline-block;
-        width: 50px;
-        height: 24px;
-        margin-left: 10px;
-        vertical-align: middle;
-      }
-
-      .toggle-switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-
-      .toggle-slider {
-        position: absolute;
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: #ccc;
-        transition: .4s;
-        border-radius: 24px;
-      }
-
-      .toggle-slider:before {
-        position: absolute;
-        content: "";
-        height: 16px;
-        width: 16px;
-        left: 4px;
-        bottom: 4px;
-        background-color: white;
-        transition: .4s;
-        border-radius: 50%;
-      }
-
-      input:checked + .toggle-slider {
-        background-color: #2196F3;
-      }
-
-      input:checked + .toggle-slider:before {
-        transform: translateX(26px);
-      }
     </style>
   </head>
   <body>
@@ -336,47 +214,34 @@
       <div id="alert"><div id="alert-text">EYES CLOSED TOO LONG!</div></div>
       <div id="debug">EAR: 0.00 | FPS: 0 | State: Not Started</div>
       <div id="notification">SMS Alert: Inactive</div>
-      
-      <!-- Mesh visibility toggle -->
-      <div id="mesh-toggle-container">
-        Face Mesh:
-        <label class="toggle-switch">
-          <input type="checkbox" id="mesh-toggle" checked>
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      
-      <!-- Phone input form -->
-      <div id="phone-container">
-        <h3 class="phone-form-title">Alert Phone Number</h3>
-        <div class="phone-input-group">
-          <input
-            type="text"
-            id="country-code"
-            class="country-code-input"
-            placeholder="+1"
-            maxlength="4"
-          />
-          <input
-            type="tel"
-            id="phone-number"
-            class="phone-number-input"
-            placeholder="Phone number"
-          />
-        </div>
-        <div id="error-message" class="error-message">
-          Please enter a valid country code and phone number
-        </div>
-        <button id="save-phone" class="save-button">Save</button>
-        <div id="current-phone" class="current-phone">Current: +66887513078</div>
-      </div>
+      <div id="phone-container">Alert Phone: Default</div>
     </div>
 
     <audio id="alertSound" src="alert.mp3"></audio>
 
     <script>
+      let port;
+      let writer;
+
+      async function connectSerial() {
+        try {
+          port = await navigator.serial.requestPort();
+          await port.open({ baudRate: 115200 });
+
+          const encoder = new TextEncoderStream();
+          encoder.readable.pipeTo(port.writable);
+          writer = encoder.writable.getWriter();
+
+          alert("Connected to ESP32");
+        } catch (err) {
+          // alert("Connection failed: " + err);
+        }
+      }
+
+      async function sendVibration() {
+        await writer.write("vibrate:5\n");
+      }
       // Flag to track if running from MIT App Inventor
-      let isRunningFromMIT = false;
 
       // Function to be called from MIT App Inventor to indicate the environment
       function runfrommit() {
@@ -451,101 +316,26 @@
       const startButton = document.getElementById("start-button");
       const androidError = document.getElementById("android-error");
       const retryButton = document.getElementById("retry-button");
-      const currentPhoneDisplay = document.getElementById("current-phone");
-      const meshToggle = document.getElementById("mesh-toggle");
-
-      // Phone input elements
-      const countryCodeInput = document.getElementById("country-code");
-      const phoneNumberInput = document.getElementById("phone-number");
-      const saveButton = document.getElementById("save-phone");
-      const errorMessage = document.getElementById("error-message");
-
-      // Mesh visibility settings
-      let showMesh = true;
-      let meshOpacity = 1.0;
-      let meshLineWidth = 1.5;
-      let eyeLineWidth = 3;
 
       // Adjusted threshold for more accurate eye closure detection
-      const EAR_THRESHOLD = 0.07; // Updated threshold as requested by user
+      const EAR_THRESHOLD = 0.2; // Threshold for eye closure
       const TARGET_ALERT_TIME = 3; // Alert after 3 seconds of eyes closed
       const RECOVERY_FRAMES = 3; // Number of open frames needed to reset alert
       const SMS_COOLDOWN_TIME = 15000; // 15 seconds cooldown for SMS alerts
+      const savedNumber = localStorage.getItem("alertPhoneNumber");
+      console.log("SMS will be sent to:", savedNumber);
 
       // SMS Configuration using API key instead of Account SID/Auth Token
       const twilioApiKey = "SK361e6faad3ec68d3c14e0b925c3dde47";
       const twilioApiSecret = "oAZyaPgsFF7oEzbVT1hRktGuiIu9wWL1";
       const twilioAccountSid = "AC7de93db1c7917508d40746d5c34a0f1e"; // Still need account SID for URL
       const twilioFromNumber = "+18166246916";
-      let alertPhoneNumber = "+66887513078"; // Default phone number
+      let alertPhoneNumber = savedNumber; // Default phone number
       const alertMessage = "Drowsy Detect SMS Direct to this number";
 
       // Track last SMS sent time
       let lastSMSSentTime = 0;
       let camera = null;
-
-      // Initialize mesh toggle
-      function initMeshToggle() {
-        meshToggle.addEventListener('change', function() {
-          showMesh = this.checked;
-          showNotification("Face mesh " + (showMesh ? "enabled" : "disabled"));
-        });
-      }
-
-      // Initialize phone input form
-      function initPhoneForm() {
-        // Set initial value in the display
-        currentPhoneDisplay.textContent = "Current: " + alertPhoneNumber;
-        
-        // Auto-add + to country code if user doesn't type it
-        countryCodeInput.addEventListener('input', function() {
-          if (this.value && !this.value.startsWith('+')) {
-            this.value = '+' + this.value;
-          }
-          
-          // Only allow numbers and + sign
-          this.value = this.value.replace(/[^\d+]/g, '');
-        });
-
-        // Only allow numbers in phone input
-        phoneNumberInput.addEventListener('input', function() {
-          this.value = this.value.replace(/\D/g, '');
-        });
-
-        // Handle Enter key press in phone number field
-        phoneNumberInput.addEventListener('keypress', function(e) {
-          if (e.key === 'Enter') {
-            saveButton.click();
-          }
-        });
-
-        // Save button click handler
-        saveButton.addEventListener('click', function() {
-          const countryCode = countryCodeInput.value.trim();
-          const phoneNumber = phoneNumberInput.value.trim();
-          
-          // Validate inputs
-          if (!countryCode || !phoneNumber || !countryCode.startsWith('+') || countryCode.length < 2 || phoneNumber.length < 5) {
-            errorMessage.style.display = 'block';
-            return;
-          }
-          
-          // Hide error message if validation passes
-          errorMessage.style.display = 'none';
-          
-          // Combine country code and phone number
-          const fullPhoneNumber = countryCode + phoneNumber;
-          
-          // Call the receivePhoneNumber function
-          receivePhoneNumber(fullPhoneNumber);
-          
-          // Show success feedback
-          saveButton.textContent = 'Saved!';
-          setTimeout(() => {
-            saveButton.textContent = 'Save';
-          }, 2000);
-        });
-      }
 
       // Function to receive phone number from external source
       function receivePhoneNumber(phoneNumber) {
@@ -553,7 +343,7 @@
         // Update the alert phone number
         alertPhoneNumber = phoneNumber;
         // Display it in the UI
-        currentPhoneDisplay.textContent = "Current: " + phoneNumber;
+        phoneContainer.textContent = "Alert Phone: " + phoneNumber;
         // Show notification
         showNotification("Alert phone number updated: " + phoneNumber);
 
@@ -714,139 +504,131 @@
       function onResults(results) {
         updateFPS(); // Update FPS on each frame
 
-        // Clear canvas
+        if (video.videoWidth && video.videoHeight) {
+          resizeCanvas();
+        }
+
+        ctx.save();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-          // Get the first face
+        if (
+          results.multiFaceLandmarks &&
+          results.multiFaceLandmarks.length > 0
+        ) {
           const landmarks = results.multiFaceLandmarks[0];
+          drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, {
+            color: "#C0C0C070",
+            lineWidth: 1,
+          });
+          drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, {
+            color: "#30FF30",
+            lineWidth: 2,
+          });
+          drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, {
+            color: "#30FF30",
+            lineWidth: 2,
+          });
 
-          // Left eye indices (simplified)
-          const leftEyeIndices = [33, 160, 158, 133, 153, 144];
-          // Right eye indices (simplified)
-          const rightEyeIndices = [362, 385, 387, 263, 373, 380];
+          const leftEAR = getEAR(landmarks, [33, 160, 158, 133, 153, 144]);
+          const rightEAR = getEAR(landmarks, [362, 385, 387, 263, 373, 380]);
+          const avgEAR = (leftEAR + rightEAR) / 2;
 
-          // Calculate EAR for both eyes
-          const leftEAR = getEAR(landmarks, leftEyeIndices);
-          const rightEAR = getEAR(landmarks, rightEyeIndices);
-          const avgEAR = (leftEAR + rightEAR) / 2.0;
-
-          // Add to history for dynamic threshold
-          if (earHistory.length >= EAR_HISTORY_SIZE) {
-            earHistory.shift();
+          // Update EAR history for dynamic threshold
+          if (avgEAR > 0.15) {
+            // Only include valid readings
+            earHistory.push(avgEAR);
+            if (earHistory.length > EAR_HISTORY_SIZE) {
+              earHistory.shift();
+            }
           }
-          earHistory.push(avgEAR);
 
-          // Get current threshold
           const currentThreshold = getDynamicThreshold();
 
-          // Update debug info
-          debug.textContent = `EAR: ${avgEAR.toFixed(2)} | FPS: ${currentFPS} | Threshold: ${currentThreshold.toFixed(
-            2
-          )} | Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds}`;
+          const eyeState = avgEAR < currentThreshold ? "Closed" : "Open";
+          const timeToAlert = (
+            (framesForThreeSeconds - consecutiveClosedFrames) /
+            currentFPS
+          ).toFixed(1);
+          const progressToAlert = Math.min(
+            100,
+            (consecutiveClosedFrames / framesForThreeSeconds) * 100
+          ).toFixed(0);
 
-          // Check if eyes are closed
+          debug.textContent = `EAR: ${avgEAR.toFixed(
+            2
+          )} | FPS: ${currentFPS} | Frames: ${consecutiveClosedFrames}/${framesForThreeSeconds} | Progress: ${progressToAlert}% | State: ${eyeState}`;
+
+          // Logic for eye state detection with improved recovery
           if (avgEAR < currentThreshold) {
             consecutiveClosedFrames++;
             consecutiveOpenFrames = 0;
-
-            // Check if eyes have been closed for too long
-            if (
-              consecutiveClosedFrames >= framesForThreeSeconds &&
-              !isAlertActive
-            ) {
-              // Trigger alert
-              isAlertActive = true;
-              alertBox.style.display = "flex";
-              status.textContent = "ALERT: Eyes Closed Too Long!";
-              status.style.backgroundColor = "rgba(255, 0, 0, 0.7)";
-
-              // Play alert sound
-              alertSound.play().catch((e) => {
-                console.error("Error playing alert sound:", e);
-              });
-
-              // Send SMS alert
-              sendSMSAlert();
-
-              // Send alert to App Inventor if running from MIT
-              appInventorBridge.sendAlert(true);
-            }
           } else {
-            // Eyes are open
             consecutiveOpenFrames++;
+            // Only reset closed counter after several confirmed open frames
             if (consecutiveOpenFrames >= RECOVERY_FRAMES) {
               consecutiveClosedFrames = 0;
             }
+          }
 
-            // Reset alert if it was active
-            if (isAlertActive && consecutiveOpenFrames >= RECOVERY_FRAMES) {
+          // Alert logic - trigger when frames closed reaches the 3-second threshold
+          if (consecutiveClosedFrames >= framesForThreeSeconds) {
+            if (!isAlertActive) {
+              isAlertActive = true;
+              status.textContent = "ALERT: Eyes closed too long!";
+              alertBox.style.display = "flex";
+              alertSound.loop = true;
+              sendVibration();
+              alertSound.play().catch((e) => {
+                console.log("Audio playback failed:", e);
+              });
+              appInventorBridge.sendAlert(true);
+
+              // Send SMS alert with cooldown
+              sendSMSAlert();
+            }
+          } else if (consecutiveOpenFrames >= RECOVERY_FRAMES) {
+            if (isAlertActive) {
               isAlertActive = false;
-              alertBox.style.display = "none";
               status.textContent = "Monitoring...";
-              status.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-
-              // Send alert state to App Inventor
+              alertBox.style.display = "none";
+              alertSound.pause();
+              alertSound.currentTime = 0;
               appInventorBridge.sendAlert(false);
             }
           }
-
-          // Draw face mesh if enabled
-          if (showMesh) {
-            // Draw full face mesh with improved visibility
-            drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, {
-              color: `rgba(180, 180, 255, ${meshOpacity})`,
-              lineWidth: meshLineWidth,
-            });
-            
-            // Draw face contour for better visibility
-            drawConnectors(ctx, landmarks, FACEMESH_FACE_OVAL, {
-              color: `rgba(255, 255, 255, ${meshOpacity})`,
-              lineWidth: meshLineWidth + 0.5,
-            });
-            
-            // Draw lips for better visibility
-            drawConnectors(ctx, landmarks, FACEMESH_LIPS, {
-              color: `rgba(255, 150, 150, ${meshOpacity})`,
-              lineWidth: meshLineWidth + 0.5,
-            });
-            
-            // Draw eyes with color indicating open/closed state
-            drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, {
-              color: rightEAR < currentThreshold ? "#FF3030" : "#30FF30",
-              lineWidth: eyeLineWidth,
-            });
-            drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, {
-              color: leftEAR < currentThreshold ? "#FF3030" : "#30FF30",
-              lineWidth: eyeLineWidth,
-            });
-            
-            // Draw eyebrows for better visibility
-            drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYEBROW, {
-              color: `rgba(255, 230, 150, ${meshOpacity})`,
-              lineWidth: meshLineWidth + 0.5,
-            });
-            drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYEBROW, {
-              color: `rgba(255, 230, 150, ${meshOpacity})`,
-              lineWidth: meshLineWidth + 0.5,
-            });
-          }
         } else {
-          // No face detected
-          status.textContent = "No face detected";
+          debug.textContent = `EAR: N/A | FPS: ${currentFPS} | State: No Face`;
+          // Don't change alert state when face is temporarily lost
         }
+
+        ctx.restore();
       }
 
-      // Check Android permissions
+      // Initialize FaceMesh
+      const faceMesh = new FaceMesh({
+        locateFile: (file) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+      });
+
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+
+      faceMesh.onResults(onResults);
+
+      // Check for Android WebView camera permissions
       async function checkAndroidPermissions() {
+        // If using Android bridge, check permissions
         if (androidBridge.hasAndroidBridge) {
-          // Check if we have camera permission
           if (!androidBridge.hasCameraPermission()) {
-            // Request camera permission
+            // Request permission through Android bridge
             const permissionGranted = androidBridge.requestCameraPermission();
             if (!permissionGranted) {
-              // Show Android error
-              androidError.style.display = "flex";
+              showAndroidError();
               return false;
             }
           }
@@ -854,85 +636,146 @@
         return true;
       }
 
-      // Initialize camera
-      function initCamera() {
+      function showAndroidError() {
+        androidError.style.display = "flex";
         permissionOverlay.style.display = "none";
-        status.textContent = "Starting camera...";
-
-        const faceMesh = new FaceMesh({
-          locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-          },
-        });
-
-        faceMesh.setOptions({
-          maxNumFaces: 1,
-          refineLandmarks: true,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-        });
-
-        faceMesh.onResults(onResults);
-
-        camera = new Camera(video, {
-          onFrame: async () => {
-            await faceMesh.send({ image: video });
-          },
-          width: 640,
-          height: 480,
-        });
-
-        camera
-          .start()
-          .then(() => {
-            console.log("Camera started successfully");
-            status.textContent = "Monitoring...";
-            resizeCanvas();
-            showNotification("Face mesh enabled with eye threshold: 0.07");
-          })
-          .catch((error) => {
-            console.error("Error starting camera:", error);
-            status.textContent = "Camera error: " + error.message;
-
-            // Show Android error if appropriate
-            if (androidBridge.hasAndroidBridge) {
-              androidError.style.display = "flex";
-            }
-          });
       }
 
-      // Start button click handler
-      startButton.addEventListener("click", () => {
-        checkAndroidPermissions().then((permissionsOK) => {
-          if (permissionsOK) {
-            initCamera();
-          }
-        });
-      });
-
-      // Retry button click handler
-      retryButton.addEventListener("click", () => {
+      // Initialize the camera setup
+      async function initCamera() {
+        connectSerial();
+        permissionOverlay.style.display = "none";
         androidError.style.display = "none";
-        checkAndroidPermissions().then((permissionsOK) => {
-          if (permissionsOK) {
-            initCamera();
+
+        // Check Android permissions first if applicable
+        const permissionsOK = await checkAndroidPermissions();
+        if (!permissionsOK) {
+          return;
+        }
+
+        try {
+          // Check if getUserMedia is supported
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("getUserMedia not supported");
           }
-        });
+
+          // First check if camera is available by requesting user permission
+          await navigator.mediaDevices.getUserMedia({ video: true });
+
+          // Initialize camera with MediaPipe
+          camera = new Camera(video, {
+            onFrame: async () => {
+              await faceMesh.send({ image: video });
+            },
+            width: 640, // Reduced resolution for better performance on mobile
+            height: 480,
+            facingMode: "user", // Front camera for better face detection
+          });
+
+          await camera.start();
+          status.textContent = "Monitoring...";
+          showNotification("Camera started successfully");
+          androidBridge.showToast("Drowsiness detection active");
+
+          // If running from MIT App Inventor, send status
+        } catch (error) {
+          console.error("Camera error:", error);
+          status.textContent = "Camera error!";
+          showNotification("Failed to start camera: " + error.message);
+
+          // Show Android specific error if in WebView
+          if (androidBridge.hasAndroidBridge) {
+            showAndroidError();
+          } else {
+            // Show regular permission overlay again
+            permissionOverlay.style.display = "flex";
+          }
+        }
+      }
+
+      // Add event listeners
+      startButton.addEventListener("click", () => {
+        initCamera();
       });
 
-      // Handle window resize
-      window.addEventListener("resize", resizeCanvas);
-
-      // Initialize phone form and mesh toggle when document is loaded
-      document.addEventListener('DOMContentLoaded', function() {
-        initPhoneForm();
-        initMeshToggle();
+      retryButton.addEventListener("click", () => {
+        initCamera();
       });
 
-      // Initialize immediately in case DOMContentLoaded already fired
-      if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        initPhoneForm();
-        initMeshToggle();
+      // Handle messages from Android
+      window.addEventListener("message", function (event) {
+        if (event.data && event.data.action === "getAlertStatus") {
+          appInventorBridge.sendAlert(isAlertActive);
+        }
+
+        if (event.data && event.data.action === "cameraPermissionGranted") {
+          initCamera();
+        }
+
+        if (
+          event.data &&
+          event.data.action === "updatePhoneNumber" &&
+          event.data.phoneNumber
+        ) {
+          receivePhoneNumber(event.data.phoneNumber);
+        }
+
+        // Handle MIT App Inventor specific messages
+        if (event.data && event.data.action === "runfrommit") {
+          runfrommit();
+        }
+      });
+
+      // Make camera controls available globally for Android to call
+      window.startCamera = initCamera;
+      window.stopCamera = function () {
+        if (camera) {
+          camera.stop();
+          status.textContent = "Camera stopped";
+          showNotification("Camera stopped");
+
+          // If running from MIT App Inventor, send status
+          if (
+            isRunningFromMIT &&
+            window.AppInventor &&
+            window.AppInventor.setWebViewString
+          ) {
+            window.AppInventor.setWebViewString("CAMERA_STATUS=STOPPED");
+          }
+        }
+      };
+
+      // Handle page visibility changes (app going to background)
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden && camera) {
+          // Page is hidden (app in background)
+          camera.stop();
+        } else if (!document.hidden && camera) {
+          // Page is visible again (app in foreground)
+          camera.start().catch((error) => {
+            console.error("Error restarting camera:", error);
+            initCamera(); // Try full reinit if simple restart fails
+          });
+        }
+      });
+
+      // Handle orientation changes
+      window.addEventListener("orientationchange", function () {
+        // Give time for orientation to complete
+        setTimeout(() => {
+          if (video.videoWidth && video.videoHeight) {
+            resizeCanvas();
+          }
+        }, 300);
+      });
+
+      // Check if this was loaded in MIT App Inventor automatically
+      // This tries to detect if we're in App Inventor's WebViewer by looking for the AppInventor object
+      if (window.AppInventor && window.AppInventor.setWebViewString) {
+        // We appear to be in MIT App Inventor, so run the function automatically
+        setTimeout(function () {
+          runfrommit();
+        }, 1000); // Short delay to ensure everything is loaded
       }
     </script>
   </body>
